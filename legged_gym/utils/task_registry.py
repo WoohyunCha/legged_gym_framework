@@ -81,15 +81,15 @@ class TaskRegistry():
         if args is None:
             args = get_args()
         # check if there is a registered env with that name
-        if name in self.task_classes:
-            task_class = self.get_task_class(name)
+        if name in self.task_classes: # VecEnvs. 
+            task_class = self.get_task_class(name) # task class is the registered VecEnv
         else:
             raise ValueError(f"Task with name: {name} was not registered")
         if env_cfg is None:
             # load config files
-            env_cfg, _ = self.get_cfgs(name)
+            env_cfg, _ = self.get_cfgs(name) # registered env_cfg. Cfg() object (robot)_config.py file
         # override cfg from args (if specified)
-        env_cfg, _ = update_cfg_from_args(env_cfg, None, args)
+        env_cfg, _ = update_cfg_from_args(env_cfg, None, args) # None -> uses default training <number of env, seed, max_iterations, experiment name ...>
         set_seed(env_cfg.seed)
         # parse sim params (convert to dict first)
         sim_params = {"sim": class_to_dict(env_cfg.sim)}
@@ -99,7 +99,7 @@ class TaskRegistry():
                             physics_engine=args.physics_engine,
                             sim_device=args.sim_device,
                             headless=args.headless)
-        return env, env_cfg
+        return env, env_cfg # env is mostly the registered env, but updated with args
 
     def make_alg_runner(self, env, name=None, args=None, train_cfg=None, log_root="default") -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
         """ Creates the training algorithm  either from a registered namme or from the provided config file.
@@ -139,17 +139,19 @@ class TaskRegistry():
             log_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name)
             log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         elif log_root is None:
-            log_dir = None
+            log_dir = None # no logging
         else:
             log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         
         train_cfg_dict = class_to_dict(train_cfg)
         runner = OnPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
+
         #save resume path before creating a new log_dir
         resume = train_cfg.runner.resume
         if resume:
             # load previously trained model
             resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint)
+            # load_run, checkpoint are defined in leggedrobotCfgPPO, which is the base class for all configs. Values are -1, indicating to use the last log to resume.
             print(f"Loading model from: {resume_path}")
             runner.load(resume_path)
         return runner, train_cfg
