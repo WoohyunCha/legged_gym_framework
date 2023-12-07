@@ -30,5 +30,5 @@
 
 import os
 
-LEGGED_GYM_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-LEGGED_GYM_ENVS_DIR = os.path.join(LEGGED_GYM_ROOT_DIR, 'legged_gym', 'envs')
+LEGGED_GYM_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) # THIS FILE's path
+LEGGED_GYM_ENVS_DIR = os.path.join(LEGGED_GYM_ROOT_DIR, 'legged_gym', 'envs') # ./legged_gym/envs -> os.path.join 을 하면 알아서 argument 사이에 / 가 박힌 directory 를 줌.

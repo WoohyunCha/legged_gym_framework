@@ -32,7 +32,7 @@ from .base_config import BaseConfig
 
 class LeggedRobotCfg(BaseConfig):
     class env:
-        num_envs = 4096
+        num_envs = 4096 # this is optimal
         num_observations = 235
         num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
         num_actions = 12
@@ -203,7 +203,7 @@ class LeggedRobotCfgPPO(BaseConfig):
     seed = 1
     runner_class_name = 'OnPolicyRunner'
     class policy:
-        init_noise_std = 1.0
+        init_noise_std = 1.0 # action std fixed.
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
@@ -230,7 +230,7 @@ class LeggedRobotCfgPPO(BaseConfig):
     class runner:
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
-        num_steps_per_env = 24 # per iteration
+        num_steps_per_env = 24 # per iteration. Number of steps each robot takes per policy updates. May increase for better performance, but longer training time
         max_iterations = 1500 # number of policy updates
 
         # logging
@@ -242,3 +242,4 @@ class LeggedRobotCfgPPO(BaseConfig):
         load_run = -1 # -1 = last run
         checkpoint = -1 # -1 = last saved model
         resume_path = None # updated from load_run and chkpt
+        

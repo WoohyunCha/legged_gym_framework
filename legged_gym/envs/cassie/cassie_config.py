@@ -32,7 +32,7 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 
 class CassieRoughCfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
-        num_envs = 4096
+        num_envs = 1
         num_observations = 169
         num_actions = 12
 
@@ -42,7 +42,7 @@ class CassieRoughCfg( LeggedRobotCfg ):
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
 
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 1.] # x,y,z [m]
+        pos = [0.0, 0.0, 10.] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
             'hip_abduction_left': 0.1,
             'hip_rotation_left': 0.,

@@ -28,9 +28,9 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
-from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
+from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR # project root(isaacgym/legged_gym, because setup.py is here) -> legged_gym. By from legged_gym, the __init__.py is executed. 
 from legged_gym.envs.a1.a1_config import A1RoughCfg, A1RoughCfgPPO
-from .base.legged_robot import LeggedRobot
+from .base.legged_robot import LeggedRobot # relative directory used
 from .anymal_c.anymal import Anymal
 from .anymal_c.mixed_terrains.anymal_c_rough_config import AnymalCRoughCfg, AnymalCRoughCfgPPO
 from .anymal_c.flat.anymal_c_flat_config import AnymalCFlatCfg, AnymalCFlatCfgPPO
@@ -38,14 +38,25 @@ from .anymal_b.anymal_b_config import AnymalBRoughCfg, AnymalBRoughCfgPPO
 from .cassie.cassie import Cassie
 from .cassie.cassie_config import CassieRoughCfg, CassieRoughCfgPPO
 from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
+from .jet.jet import Jet
+from .jet.jet_config import JetRoughCfg, JetRoughCfgPPO
+from .jet.jet_config_fixed import JetRoughCfg_fixed, JetRoughCfgPPO_fixed
+from .jet.jet_config_fixed_flat import JetFlatCfg_fixed, JetFlatCfgPPO_fixed
+from .jet.jet_config_flat import JetFlatCfg, JetFlatCfgPPO
+
 
 
 import os
 
-from legged_gym.utils.task_registry import task_registry
+from legged_gym.utils.task_registry import task_registry # task_registry is a global registry, initialized in legged_gym.utils.task_registry.py
 
-task_registry.register( "anymal_c_rough", Anymal, AnymalCRoughCfg(), AnymalCRoughCfgPPO() )
-task_registry.register( "anymal_c_flat", Anymal, AnymalCFlatCfg(), AnymalCFlatCfgPPO() )
+task_registry.register( "anymal_c_rough", Anymal, AnymalCRoughCfg(), AnymalCRoughCfgPPO() ) # AnymalCRoughCfg() is an instance of LeggedRobotCfg
+task_registry.register( "anymal_c_flat", Anymal, AnymalCFlatCfg(), AnymalCFlatCfgPPO() ) # Anymal is a VecEnv object (env)
 task_registry.register( "anymal_b", Anymal, AnymalBRoughCfg(), AnymalBRoughCfgPPO() )
 task_registry.register( "a1", LeggedRobot, A1RoughCfg(), A1RoughCfgPPO() )
 task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
+task_registry.register("jet", Jet, JetRoughCfg(), JetRoughCfgPPO())
+task_registry.register("jet_fixed", Jet, JetRoughCfg_fixed(), JetRoughCfgPPO_fixed())
+task_registry.register("jet_fixed_flat", Jet, JetFlatCfg_fixed(), JetFlatCfgPPO_fixed())
+task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
+
