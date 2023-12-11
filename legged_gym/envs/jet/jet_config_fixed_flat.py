@@ -85,6 +85,7 @@ class JetFlatCfg_fixed( LeggedRobotCfg ):
             ang_vel_xy = -0.0
             feet_contact_forces = -1.e-3 # -1.e-4
             tracking_lin_vel = 2.0
+            angular_momentum = 1.
 
     class commands:
         curriculum = True
@@ -131,7 +132,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 3000 # number of policy updates
+        max_iterations = 1500 # number of policy updates
 
         # logging
         save_interval = 50 # check for potential saves every this many iterations
