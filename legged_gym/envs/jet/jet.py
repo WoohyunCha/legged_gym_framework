@@ -38,23 +38,10 @@ class Jet(LeggedRobot):
         # The mass matrix's element for the virtual joints 
         # Note that rpy = 0 0 0 in all links in jet urdf.
         # rb_props.inertia has three methods; x, y, and z.
-    
-    def _update_inertia(self):
-        self.inertia.zero_()
-        for key, N in self.body_names_dict.items():
-            mass = self.rb_mass[:, N]
-            inertia = self.rb_props[:, N, 1:, :]
-
-            self.inertia[:, 6*N+3:6*N+6, 6*N+3:6*N+6] = inertia
-            self.inertia[:, 6*N, 6*N] = mass
-            self.inertia[:, 6*N+1, 6*N+1] = mass
-            self.inertia[:, 6*N+2, 6*N+2] = mass
         # Note that the inertia matrix is much more simple than in the paper
         # This is because the jacobian from PhysX maps the joint velocities
         # to spatial velocities IN COM FRAME.
-        
-            
-    def _update_centroidal_dynamics(self):
+
         '''
         Now we have the system momentum matrix that maps the joint velocities
         to the angular momentums of each link IN THEIR COM FRAMES
@@ -86,18 +73,36 @@ class Jet(LeggedRobot):
             Checked the last 6 rows of the jacobian, and all the joints affect 
             the spatial velocity -> COM frame
         '''
-        self.com_position.zero_() # reset com position
+
+    def _compute_centroidal_dynamics(self):
+        #reset matrices
+        self.inertia.zero_()
+        self.com_position.zero_() 
         
-        transform = torch.zeros((self.num_envs, 6*self.num_bodies, 6), device=self.device)
+        # local variables used for computation
+        transform = torch.zeros((self.num_envs, 6*self.num_bodies, 6), device=self.device) # the projection matrix
+        transform_from_inertial_to_com = torch.zeros((self.num_envs, 6*self.num_bodies, 6*self.num_bodies), device=self.device)
+        # the jacobian from physX gives us spatial velocity of the link-CoM frame about the inertial frame
+        # https://forums.developer.nvidia.com/t/differences-between-isaac-sim-and-mujoco-jacobians/252755
+        # transform_from_inertial_to_com transforms the twist in inertial frame to in link-CoM frame.
+        # This way, the inertia matrix are about the link-CoM frame, thus much more simple.
         unflatten = gymtorch.torch.nn.Unflatten(0, (self.num_envs, self.num_bodies))
         rb_states = unflatten(self.rb_states) # states are in inertial frame, about the joint frame
-        
         tmp_r = torch.zeros((self.num_envs, len(self.body_names_dict), 3, 3), device=self.device) # link rotation matrix in inertial frame
         tmp_com = torch.zeros((self.num_envs, len(self.body_names_dict), 3), device=self.device) # link com position in inertial frame
         tmp_mass = torch.zeros((self.num_envs, 3), device=self.device) # shape is (num_envs, 3) to use in CoM computation
         
-        # get CoM position
         for key, N in self.body_names_dict.items():
+            mass = self.rb_mass[:, N]
+            inertia = self.rb_props[:, N, 1:, :]
+
+            # inertia matrix
+            self.inertia[:, 6*N+3:6*N+6, 6*N+3:6*N+6] = inertia
+            self.inertia[:, 6*N, 6*N] = mass
+            self.inertia[:, 6*N+1, 6*N+1] = mass
+            self.inertia[:, 6*N+2, 6*N+2] = mass
+            
+            # link rotation matrix, link com position, robot com position computed
             quats = rb_states[:, N, 3:7] # G_R_i
             tmp_r[:, N, 0, 0] = 2*(quats[:, 0] * quats[:, 0] + quats[:, 1] * quats[:, 1])-1
             tmp_r[:, N, 0, 1] = 2*(quats[:, 1] * quats[:, 2] - quats[:, 0] * quats[:, 3])
@@ -108,16 +113,16 @@ class Jet(LeggedRobot):
             tmp_r[:, N, 2, 0] = 2*(quats[:, 1] * quats[:, 3] - quats[:, 0] * quats[:, 2])
             tmp_r[:, N, 2, 1] = 2*(quats[:, 2] * quats[:, 3] + quats[:, 0] * quats[:, 1])
             tmp_r[:, N, 2, 2] = 2*(quats[:, 0] * quats[:, 0] + quats[:, 3] * quats[:, 3])-1
-            tmp_com[:, N, :] = rb_states[:, N, 0:3] + (tmp_r[:, N, :, :] @ self.rb_props[:, N, 0, :].reshape(self.num_envs, 3, 1)).flatten(1,2)
-            self.com_position += self.rb_mass[:, N].reshape(2,1).repeat(1,3) * tmp_com[:, N, :]
-            tmp_mass += self.rb_mass[:, N].reshape(2,1).repeat(1,3)
-        self.com_position /= tmp_mass
-        
-        # get Transform
+            tmp_com[:, N, :] = rb_states[:, N, 0:3] + (tmp_r[:, N, :, :] @ self.rb_props[:, N, 0, :].unsqueeze(2)).flatten(1,2)
+            self.com_position += self.rb_mass[:, N].unsqueeze(1).repeat(1,3) * tmp_com[:, N, :]
+            tmp_mass += self.rb_mass[:, N].unsqueeze(1).repeat(1,3)            
+        self.com_position /= tmp_mass  # robot COM computed in inertial frame   
+              
+        # get Projection matrix
         Sc = gymtorch.torch.zeros((self.num_envs, 3, 3), device=self.device) # skew of c
         for key, N in self.body_names_dict.items():
             # c is the vector from robot-COM to link-COM
-            c = tmp_com[:, N, :] - self.com_position
+            c = tmp_com[:, N, :] - self.com_position # CoM frame has same orientation as inertial frame -> no rotation required
             Sc[:, 0, 1] = - c[:, 2]
             Sc[:, 0, 2] = c[:, 1]
             Sc[:, 1, 2] = -c[:, 0]
@@ -127,11 +132,107 @@ class Jet(LeggedRobot):
             tmp = gymtorch.torch.transpose(tmp_r[:, N, :, :], 1, 2) # i_R_G     
             transform[:, 6*N:6*N+3, 0:3] = tmp
             transform[:, 6*N:6*N+3, 3:6] = tmp @ Sc.transpose(1,2)
-            transform[:, 6*N+3:6*N+6, 3:6] = tmp             
+            transform[:, 6*N+3:6*N+6, 3:6] = tmp
             
-        CMM = transform.transpose(1,2) @ self.inertia @ self.jacobian
+            transform_from_inertial_to_com[:, 6*N:6*N+3, 6*N:6*N+3] = tmp # i_R_0                         
+            transform_from_inertial_to_com[:, 6*N+3:6*N+6, 6*N+3:6*N+6] = tmp
+                        
+        CMM = transform.transpose(1,2) @ self.inertia @ transform_from_inertial_to_com @ self.jacobian
+        # Jacobian maps to CoM frame's v&w in inertial frame. Must change this to CoM frame to use easy inertia.
+        # Try getting the joint frame velocity and follow the paper.
         dofvel = gymtorch.torch.cat((rb_states[:, 0, 7:13], self.dof_vel), dim=1)
-        self.centroidal_momentum = CMM @ dofvel.reshape(self.num_envs, -1, 1)
+        self.centroidal_momentum = (CMM @ dofvel.unsqueeze(2)).squeeze()           
+        print("Centroidal momentum : ", self.centroidal_momentum)
+      
+    def _compute_centroidal_dynamics_b(self):
+        #reset matrices
+        self.inertia.zero_()
+        self.com_position.zero_() 
+        
+        # local variables used for computation
+        transform = torch.zeros((self.num_envs, 6*self.num_bodies, 6), device=self.device) # the projection matrix
+        transform_from_inertial_to_com = torch.zeros((self.num_envs, 6*self.num_bodies, 6*self.num_bodies), device=self.device)
+        transform_from_com_to_joint = torch.eye((6*self.num_bodies), device=self.device).reshape(1, 6*self.num_bodies, 6*self.num_bodies).repeat(self.num_envs, 1, 1)
+        # the jacobian from physX gives us spatial velocity of the link-CoM frame about the inertial frame
+        # https://forums.developer.nvidia.com/t/differences-between-isaac-sim-and-mujoco-jacobians/252755
+        # transform_from_inertial_to_com transforms the twist in inertial frame to in link-CoM frame.
+        # This way, the inertia matrix are about the link-CoM frame, thus much more simple.
+        unflatten = gymtorch.torch.nn.Unflatten(0, (self.num_envs, self.num_bodies))
+        rb_states = unflatten(self.rb_states) # states are in inertial frame, about the joint frame
+        tmp_r = torch.zeros((self.num_envs, len(self.body_names_dict), 3, 3), device=self.device) # link rotation matrix in inertial frame
+        tmp_com = torch.zeros((self.num_envs, len(self.body_names_dict), 3), device=self.device) # link com position in inertial frame
+        tmp_mass = torch.zeros((self.num_envs, 3), device=self.device) # shape is (num_envs, 3) to use in CoM computation
+        Sc = gymtorch.torch.zeros((self.num_envs, 3, 3), device=self.device) # skew of c
+        
+        for key, N in self.body_names_dict.items():
+            mass = self.rb_mass[:, N]
+            inertia = self.rb_props[:, N, 1:, :]
+
+            c = self.rb_props[:, N, 0, :]
+            Sc[:, 0, 1] = - c[:, 2]
+            Sc[:, 0, 2] = c[:, 1]
+            Sc[:, 1, 2] = -c[:, 0]
+            Sc[:, 1, 0] = c[:, 2]
+            Sc[:, 2, 0] = -c[:, 1]
+            Sc[:, 2, 1] = c[:, 0]      
+
+            # inertia matrix
+            self.inertia[:, 6*N+3:6*N+6, 6*N+3:6*N+6] = inertia + mass * Sc @ Sc.transpose(1,2)
+            self.inertia[:, 6*N, 6*N] = mass
+            self.inertia[:, 6*N+1, 6*N+1] = mass
+            self.inertia[:, 6*N+2, 6*N+2] = mass
+            self.inertia[:, 6*N:6*N+3, 6*N+3:6*N+6] = mass * Sc.transpose(1,2)
+            self.inertia[:, 6*N+3:6*N+6, 6*N:6*N+3] = mass * Sc
+            
+            # link rotation matrix, link com position, robot com position computed
+            quats = rb_states[:, N, 3:7] # G_R_i
+            tmp_r[:, N, 0, 0] = 2*(quats[:, 0] * quats[:, 0] + quats[:, 1] * quats[:, 1])-1
+            tmp_r[:, N, 0, 1] = 2*(quats[:, 1] * quats[:, 2] - quats[:, 0] * quats[:, 3])
+            tmp_r[:, N, 0, 2] = 2*(quats[:, 1] * quats[:, 3] + quats[:, 0] * quats[:, 2])
+            tmp_r[:, N, 1, 0] = 2*(quats[:, 1] * quats[:, 2] + quats[:, 0] * quats[:, 3])
+            tmp_r[:, N, 1, 1] = 2*(quats[:, 0] * quats[:, 0] + quats[:, 2] * quats[:, 2])-1
+            tmp_r[:, N, 1, 2] = 2*(quats[:, 2] * quats[:, 3] - quats[:, 0] * quats[:, 1])
+            tmp_r[:, N, 2, 0] = 2*(quats[:, 1] * quats[:, 3] - quats[:, 0] * quats[:, 2])
+            tmp_r[:, N, 2, 1] = 2*(quats[:, 2] * quats[:, 3] + quats[:, 0] * quats[:, 1])
+            tmp_r[:, N, 2, 2] = 2*(quats[:, 0] * quats[:, 0] + quats[:, 3] * quats[:, 3])-1
+            tmp_com[:, N, :] = rb_states[:, N, 0:3] + (tmp_r[:, N, :, :] @ self.rb_props[:, N, 0, :].unsqueeze(2)).flatten(1,2)
+            self.com_position += self.rb_mass[:, N].unsqueeze(1).repeat(1,3) * tmp_com[:, N, :]
+            tmp_mass += self.rb_mass[:, N].unsqueeze(1).repeat(1,3)            
+        self.com_position /= tmp_mass  # robot COM computed in inertial frame   
+              
+        # get Projection matrix
+        for key, N in self.body_names_dict.items():
+            # c is the vector from robot-COM to link-COM
+            c = rb_states[:, N, 0:3] - self.com_position # CoM frame has same orientation as inertial frame -> no rotation required
+            Sc[:, 0, 1] = - c[:, 2]
+            Sc[:, 0, 2] = c[:, 1]
+            Sc[:, 1, 2] = -c[:, 0]
+            Sc[:, 1, 0] = c[:, 2]
+            Sc[:, 2, 0] = -c[:, 1]
+            Sc[:, 2, 1] = c[:, 0]          
+            tmp = gymtorch.torch.transpose(tmp_r[:, N, :, :], 1, 2) # i_R_G     
+            transform[:, 6*N:6*N+3, 0:3] = tmp
+            transform[:, 6*N:6*N+3, 3:6] = tmp @ Sc.transpose(1,2)
+            transform[:, 6*N+3:6*N+6, 3:6] = tmp
+            
+            transform_from_inertial_to_com[:, 6*N:6*N+3, 6*N:6*N+3] = tmp # i_R_0                         
+            transform_from_inertial_to_com[:, 6*N+3:6*N+6, 6*N+3:6*N+6] = tmp
+            
+            c = - self.rb_props[:, N, 0, :]
+            Sc[:, 0, 1] = - c[:, 2]
+            Sc[:, 0, 2] = c[:, 1]
+            Sc[:, 1, 2] = -c[:, 0]
+            Sc[:, 1, 0] = c[:, 2]
+            Sc[:, 2, 0] = -c[:, 1]
+            Sc[:, 2, 1] = c[:, 0]                 
+            transform_from_com_to_joint[:, 6*N:6*N+3, 6*N+3:6*N+6] = Sc.transpose(1,2)
+                        
+        CMM = transform.transpose(1,2) @ self.inertia @ transform_from_com_to_joint @ transform_from_inertial_to_com @ self.jacobian
+        # Jacobian maps to CoM frame's v&w in inertial frame. Must change this to CoM frame to use easy inertia.
+        # Try getting the joint frame velocity and follow the paper.
+        dofvel = gymtorch.torch.cat((rb_states[:, 0, 7:13], self.dof_vel), dim=1)
+        self.centroidal_momentum = (CMM @ dofvel.unsqueeze(2)).squeeze()           
+        print("Centroidal momentum b : ", self.centroidal_momentum)
       
     def _init_buffers(self):
         super()._init_buffers()
@@ -140,10 +241,13 @@ class Jet(LeggedRobot):
         self.gym.refresh_jacobian_tensors(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)        
         self.jacobian = gymtorch.wrap_tensor(_jacobian).flatten(1,2) # originally shape of (num_envs, num_bodies, 6, num_dofs+6)
+        # The jacobian maps joint velocities (num_dofs + 6) to spatial velocities of CoM frame of each link in inertial frame
+        # https://nvidia-omniverse.github.io/PhysX/physx/5.1.0/docs/Articulations.html#jacobian
         self.rb_states = gymtorch.wrap_tensor(_rb_states)
         
         self.inertia = gymtorch.torch.zeros((self.num_envs, 6*self.num_bodies, 6*self.num_bodies), device = self.device)
         self.centroidal_momentum = gymtorch.torch.zeros((self.num_envs, 6), device=self.device)        
+        self.centroidal_momentum_b = gymtorch.torch.zeros((self.num_envs, 6), device=self.device)                
         self.rb_props = gymtorch.torch.zeros((self.num_envs, self.num_bodies, 4, 3), device=self.device) # [comX, comY, comZ], [Ix, Iy, Iz]
         self.rb_mass = gymtorch.torch.zeros((self.num_envs, self.num_bodies), device=self.device) # link mass
         self.com_position = gymtorch.torch.zeros((self.num_envs, 3), device=self.device)
@@ -154,20 +258,22 @@ class Jet(LeggedRobot):
                 rb_props = self.gym.get_actor_rigid_body_properties(self.envs[env], 0)[N]
                 # inertia tensors are about link's CoM frame
                 self.rb_props[env, N, 0, :] = gymtorch.torch.tensor([rb_props.com.x, rb_props.com.y, rb_props.com.z], device=self.device)
-                self.rb_props[env, N, 1, :] = gymtorch.torch.tensor([rb_props.inertia.x.x, rb_props.inertia.x.y, rb_props.inertia.x.z], device=self.device)
-                self.rb_props[env, N, 2, :] = gymtorch.torch.tensor([rb_props.inertia.y.x, rb_props.inertia.y.y, rb_props.inertia.y.z], device=self.device)
-                self.rb_props[env, N, 3, :] = gymtorch.torch.tensor([rb_props.inertia.z.x, rb_props.inertia.z.y, rb_props.inertia.z.z], device=self.device)
+                self.rb_props[env, N, 1, :] = gymtorch.torch.tensor([rb_props.inertia.x.x, -rb_props.inertia.x.y, -rb_props.inertia.x.z], device=self.device)
+                self.rb_props[env, N, 2, :] = gymtorch.torch.tensor([-rb_props.inertia.y.x, rb_props.inertia.y.y, -rb_props.inertia.y.z], device=self.device)
+                self.rb_props[env, N, 3, :] = gymtorch.torch.tensor([-rb_props.inertia.z.x, -rb_props.inertia.z.y, rb_props.inertia.z.z], device=self.device)
 
                 self.rb_mass[env, N] = rb_props.mass
         
         # Update dynamics        
-        self._update_inertia()
-        self._update_centroidal_dynamics()
+        self._compute_centroidal_dynamics()
+
+
         
     def _post_physics_step_callback(self):
         super()._post_physics_step_callback()
         self.gym.refresh_jacobian_tensors(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
-        self._update_inertia()
-        self._update_centroidal_dynamics()
-        
+        self._compute_centroidal_dynamics()
+
+         
+                    
