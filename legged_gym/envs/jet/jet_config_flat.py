@@ -47,17 +47,19 @@ class JetFlatCfg( LeggedRobotCfg ):
         stiffness = {   'HipYaw': 600., 'HipRoll': 600., 'HipPitch': 600., 
                         'KneePitch': 600., 
                         'AnklePitch': 600.,'AnkleRoll': 600.,
+                        'WaistYaw' : 100.,
                         'ShoulderPitch': 300., 'ShoulderRoll': 300., 'ShoulderYaw': 300.,
                         'ElbowRoll': 300., 
                         }  # [N*m/rad]
         damping = { 'HipYaw': 100., 'HipRoll': 100., 'HipPitch': 100., 
                         'KneePitch': 100., 
                         'AnklePitch': 100.,'AnkleRoll': 100.,
+                        'WaistYaw' : 30.,
                         'ShoulderPitch': 50., 'ShoulderRoll': 50., 'ShoulderYaw': 50.,
                         'ElbowRoll': 50., 
                         }  # [N*m*s/rad]     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
-        action_scale = 0.5
+        action_scale = 1.
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
         
@@ -81,14 +83,16 @@ class JetFlatCfg( LeggedRobotCfg ):
             torques = -5.e-7
             dof_acc = -5.e-7 # -2.e-7
             lin_vel_z = -0.5
-            feet_air_time = .5 # 5.
+            feet_air_time = 5. # 5.
             dof_pos_limits = -1.    # -1.
             no_fly = 0.5 # .25
             dof_vel = -0.0
             ang_vel_xy = -0.
             feet_contact_forces = -1.e-2 # -1.e-3
             tracking_lin_vel = 2.
-            
+            angular_momentum = -.1
+            upper_motion = -1.e-4
+                        
     class commands:
         curriculum = True
         max_curriculum = 4.
