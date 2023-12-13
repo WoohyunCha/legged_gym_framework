@@ -85,7 +85,6 @@ class JetFlatCfg_fixed( LeggedRobotCfg ):
             ang_vel_xy = -0.0
             feet_contact_forces = -1.e-3 # -1.e-4
             tracking_lin_vel = 2.0
-            angular_momentum = 1.
 
     class commands:
         curriculum = True
