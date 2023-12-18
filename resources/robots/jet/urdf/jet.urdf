@@ -94,7 +94,7 @@
       xyz="0 0 -1" />
     <limit
       effort="100"
-      velocity="20" lower="-1." upper="1." />
+      velocity="20" lower="-1." upper="0." />
   </joint>
   <link
     name="L_HipRoll_Link">
@@ -205,7 +205,7 @@
     <axis
       xyz="0 1 0" />
     <limit
-      effort="1200"
+      effort="800"
       velocity="20" lower="-3.14" upper="3.14" />
   </joint>
   <link
@@ -261,7 +261,7 @@
     <axis
       xyz="0 1 0" />
     <limit
-      effort="1200"
+      effort="800"
       velocity="20" lower="0." upper="3." />
   </joint>
   <link
@@ -317,7 +317,7 @@
     <axis
       xyz="0 1 0" />
     <limit
-      effort="800"
+      effort="500"
       velocity="20" lower="-1.57" upper="1.57" />
   </joint>
   <link
@@ -430,7 +430,7 @@
       xyz="0 0 -1" />
     <limit
       effort="100"
-      velocity="20" lower="-1." upper="1." />
+      velocity="20" lower="-0." upper="1." />
   </joint>
   <link
     name="R_HipRoll_Link">
@@ -541,7 +541,7 @@
     <axis
       xyz="0 -1 0" />
     <limit
-      effort="1200"
+      effort="800"
       velocity="20" lower="-3.14" upper="3.14" />
   </joint>
   <link
@@ -597,7 +597,7 @@
     <axis
       xyz="0 -1 0" />
     <limit
-      effort="1200"
+      effort="800"
       velocity="20" lower="-3.14" upper="0." />
   </joint>
   <link
@@ -653,7 +653,7 @@
     <axis
       xyz="0 -1 0" />
     <limit
-      effort="800"
+      effort="500"
       velocity="20" lower="-1.57" upper="1.57" />
   </joint>
   <link
@@ -754,7 +754,7 @@
   </link>
   <joint
     name="WaistPitch"
-    type="fixed">
+    type="fixed">  
     <origin
       xyz="0 0 0"
       rpy="0 0 0" />
@@ -824,7 +824,7 @@
       </geometry>
     </collision>
   </link>
-  <joint
+   <joint
     name="WaistYaw"
     type="revolute">
     <origin
@@ -837,10 +837,9 @@
     <axis
       xyz="0 0 1" />
     <limit
-      effort="300"
-      velocity="100" lower="-1." upper="1.0" />
+      effort="100"
+      velocity="20" lower="-1." upper="1.0" />
   </joint>
-
 
   <link
     name="L_ShoulderPitch_Link">
@@ -1233,7 +1232,7 @@
       xyz="0 -1 0" />
     <limit
       effort="300"
-      velocity="100" lower="-0.0" upper="1.0" />
+      velocity="100" lower="-1.0" upper="0.0" />
   </joint>
   <link
     name="R_ShoulderRoll_Link">

@@ -826,7 +826,7 @@
   </link>
    <joint
     name="WaistYaw"
-    type="fixed">
+    type="revolute">
     <origin
       xyz="0 0 0.186"
       rpy="0 0 0" />
