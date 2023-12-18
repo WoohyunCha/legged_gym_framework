@@ -41,8 +41,8 @@ from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
 from .jet.jet import Jet
 from .jet.jet_config import JetRoughCfg, JetRoughCfgPPO
 from .jet.jet_config_fixed import JetRoughCfg_fixed, JetRoughCfgPPO_fixed
-from .jet.jet_config_fixed_flat import JetFlatCfg_fixed, JetFlatCfgPPO_fixed
-from .jet.jet_config_flat import JetFlatCfg, JetFlatCfgPPO
+from .jet.jet_config_fixed_flat import JetFlatCfg_fixed, JetFlatCfg_fixed_centroid, JetFlatCfgPPO_fixed, JetFlatCfgPPOSym_fixed, JetFlatCfgPPOSym_fixed_centroid
+from .jet.jet_config_flat import JetFlatCfg, JetFlatCfgPPO, JetFlatCfgPPOSym
 
 
 
@@ -59,4 +59,7 @@ task_registry.register("jet", Jet, JetRoughCfg(), JetRoughCfgPPO())
 task_registry.register("jet_fixed", Jet, JetRoughCfg_fixed(), JetRoughCfgPPO_fixed())
 task_registry.register("jet_fixed_flat", Jet, JetFlatCfg_fixed(), JetFlatCfgPPO_fixed())
 task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
+task_registry.register("jet_flat_sym", Jet, JetFlatCfg(), JetFlatCfgPPOSym()) # With symmetry loss from https://dl.acm.org/doi/pdf/10.1145/3197517.3201397
+task_registry.register("jet_fixed_flat_sym", Jet, JetFlatCfg_fixed(), JetFlatCfgPPOSym_fixed())
+task_registry.register("jet_fixed_flat_sym_centroid", Jet, JetFlatCfg_fixed_centroid(), JetFlatCfgPPOSym_fixed_centroid())
 

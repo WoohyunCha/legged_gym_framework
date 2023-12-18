@@ -63,25 +63,26 @@ class Logger:
         self.plot_process.start()
 
     def _plot(self):
-        nb_rows = 3
-        nb_cols = 3
+        nb_rows = 3 # 3
+        nb_cols = 3 # 3
         fig, axs = plt.subplots(nb_rows, nb_cols)
         for key, value in self.state_log.items():
             time = np.linspace(0, len(value)*self.dt, len(value))
             break
         log= self.state_log
-        # plot joint targets and measured positions
+        # plot joint targets and measured positions  
+        
         a = axs[1, 0]
         if log["dof_pos"]: a.plot(time, log["dof_pos"], label='measured')
         if log["dof_pos_target"]: a.plot(time, log["dof_pos_target"], label='target')
         a.set(xlabel='time [s]', ylabel='Position [rad]', title='DOF Position')
         a.legend()
-        # plot joint velocity
+        # plot joint velocity        
         a = axs[1, 1]
         if log["dof_vel"]: a.plot(time, log["dof_vel"], label='measured')
         if log["dof_vel_target"]: a.plot(time, log["dof_vel_target"], label='target')
         a.set(xlabel='time [s]', ylabel='Velocity [rad/s]', title='Joint Velocity')
-        a.legend()
+        a.legend()        
         # plot base vel x
         a = axs[0, 0]
         if log["base_vel_x"]: a.plot(time, log["base_vel_x"], label='measured')
@@ -122,7 +123,9 @@ class Logger:
         a = axs[2, 2]
         if log["dof_torque"]!=[]: a.plot(time, log["dof_torque"], label='measured')
         a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Torque')
-        a.legend()
+        a.legend()        
+        
+
         plt.show()
 
     def print_rewards(self):
