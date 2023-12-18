@@ -44,22 +44,22 @@ class JetFlatCfg( LeggedRobotCfg ):
 
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
-        stiffness = {   'HipYaw': 600., 'HipRoll': 600., 'HipPitch': 600., 
+        stiffness = {   'HipYaw': 600., 'HipRoll': 200., 'HipPitch': 200., 
                         'KneePitch': 600., 
-                        'AnklePitch': 600.,'AnkleRoll': 600.,
+                        'AnklePitch': 600.,'AnkleRoll': 200.,
                         'WaistYaw' : 100.,
-                        'ShoulderPitch': 300., 'ShoulderRoll': 300., 'ShoulderYaw': 300.,
-                        'ElbowRoll': 300., 
+                        'ShoulderPitch': 200., 'ShoulderRoll': 200., 'ShoulderYaw': 200.,
+                        'ElbowRoll': 200., 
                         }  # [N*m/rad]
-        damping = { 'HipYaw': 100., 'HipRoll': 100., 'HipPitch': 100., 
-                        'KneePitch': 100., 
-                        'AnklePitch': 100.,'AnkleRoll': 100.,
-                        'WaistYaw' : 30.,
-                        'ShoulderPitch': 50., 'ShoulderRoll': 50., 'ShoulderYaw': 50.,
-                        'ElbowRoll': 50., 
+        damping = { 'HipYaw': 10., 'HipRoll': 10., 'HipPitch': 10., 
+                        'KneePitch': 10., 
+                        'AnklePitch': 10.,'AnkleRoll': 10.,
+                        'WaistYaw' : 5.,
+                        'ShoulderPitch': 5., 'ShoulderRoll': 5., 'ShoulderYaw': 5.,
+                        'ElbowRoll': 5., 
                         }  # [N*m*s/rad]     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
-        action_scale = 1.
+        action_scale = .5
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
         
@@ -69,29 +69,35 @@ class JetFlatCfg( LeggedRobotCfg ):
         foot_name = 'AnkleRoll'
         terminate_after_contacts_on = ['Hip', 'Waist', 'Shoulder', 'Elbow', 'Wrist', 'Hand', 'base'] # check legged_robot.py->_create_envs->uses links of which names contain "terminate_after_contacts_on"
         flip_visual_attachments = False
-        self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
+        self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
+  
+    class viewer(LeggedRobotCfg.viewer):
+        ref_env = 0
+        pos = [10, 10, 10]  # [m]
+        lookat = [0., 0., 0.]  # [m]
+  
   
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.95
         soft_dof_vel_limit = 0.9
         soft_torque_limit = 0.9
-        max_contact_force = 2000.
+        max_contact_force = 1000.
         only_positive_rewards = False
         class scales( LeggedRobotCfg.rewards.scales ):
-            termination = -200.
+            termination = -100.
             tracking_ang_vel = 1.0
-            torques = -5.e-7
-            dof_acc = -5.e-7 # -2.e-7
+            torques = -5.e-6 #-5.e-7
+            dof_acc = -2.e-7 # -2.e-7
             lin_vel_z = -0.5
-            feet_air_time = 5. # 5.
+            feet_air_time = 10. # 5.
             dof_pos_limits = -1.    # -1.
-            no_fly = 0.5 # .25
+            no_fly = .25 # .25
             dof_vel = -0.0
             ang_vel_xy = -0.
-            feet_contact_forces = -1.e-2 # -1.e-3
-            tracking_lin_vel = 2.
-            angular_momentum = -.1
-            upper_motion = -1.e-4
+            feet_contact_forces = -1.e-4 # -1.e-3
+            tracking_lin_vel = 4.
+            angular_momentum = -.05
+            upper_motion = -1. # -1.e-1
                         
     class commands:
         curriculum = True
@@ -100,10 +106,10 @@ class JetFlatCfg( LeggedRobotCfg ):
         resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
         class ranges:
-            lin_vel_x = [-1.0, 1.0] # min max [m/s]
-            lin_vel_y = [-1.0, 1.0]   # min max [m/s]
-            ang_vel_yaw = [-1, 1]    # min max [rad/s]
-            heading = [-3.14, 3.14]
+            lin_vel_x = [-2., 2.] # min max [m/s] [-0., 2.]
+            lin_vel_y = [-1., 1.]   # min max [m/s] [0., 0.]
+            ang_vel_yaw = [-1., 1.]    # min max [rad/s] [-1.,1.]
+            heading = [-3.14, 3.14] # [-3.14, 3.14]
 
 
 class LeggedRobotCfgPPO(BaseConfig):
@@ -138,7 +144,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration. Increase for better performance but longer training time
-        max_iterations = 2000 # number of policy updates
+        max_iterations = 1000 # number of policy updates
 
         # logging
         save_interval = 50 # check for potential saves every this many iterations
@@ -146,8 +152,8 @@ class LeggedRobotCfgPPO(BaseConfig):
         run_name = ''
         # load and resume
         resume = False
-        load_run = -1 # -1 = last run
-        checkpoint = -1 # -1 = last saved model
+        load_run = -1
+        checkpoint = -1 
         resume_path = None # updated from load_run and chkpt
         
 class JetFlatCfgPPO( LeggedRobotCfgPPO):
@@ -159,3 +165,66 @@ class JetFlatCfgPPO( LeggedRobotCfgPPO):
     class algorithm( LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
 
+#################SYMMETRIC###################
+
+class LeggedRobotCfgPPOSym(BaseConfig):
+    seed = 1
+    runner_class_name = 'OnPolicyRunnerSym'
+    class policy:
+        init_noise_std = 1.0
+        actor_hidden_dims = [512, 256, 128]
+        critic_hidden_dims = [512, 256, 128]
+        activation = 'sigmoid' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+        # only for 'ActorCriticRecurrent':
+        # rnn_type = 'lstm'
+        # rnn_hidden_size = 512
+        # rnn_num_layers = 1
+        
+    class algorithm:
+        # training params
+        value_loss_coef = 1.0
+        use_clipped_value_loss = True
+        clip_param = 0.2
+        entropy_coef = 0.01
+        num_learning_epochs = 5
+        num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
+        learning_rate = 1.e-3 #5.e-4
+        schedule = 'adaptive' # could be adaptive, fixed
+        gamma = 0.99
+        lam = 0.95
+        desired_kl = 0.01
+        max_grad_norm = 1.
+
+    class runner:
+        policy_class_name = 'ActorCritic'
+        algorithm_class_name = 'PPO_sym'
+        num_steps_per_env = 24 # per iteration. Increase for better performance but longer training time
+        max_iterations = 4000 # number of policy updates
+
+        # logging
+        save_interval = 50 # check for potential saves every this many iterations
+        experiment_name = 'test'
+        run_name = ''
+        # load and resume
+        resume = False
+        load_run = -1
+        checkpoint = -1 
+        resume_path = None # updated from load_run and chkpt
+
+class JetFlatCfgPPOSym( LeggedRobotCfgPPOSym):
+    
+    class runner( LeggedRobotCfgPPOSym.runner ):
+        run_name = ''
+        experiment_name = 'flat_jet_sym'
+
+    class algorithm( LeggedRobotCfgPPOSym.algorithm):
+        entropy_coef = 0.01
+        mirror = {'HipYaw': (0,6), 'HipRoll': (1,7), 'HipPitch': (2,8), 
+                        'KneePitch': (3,9), 
+                        'AnklePitch': (4,10),'AnkleRoll': (5,11),
+                        'WaistYaw' : (12, 12),
+                        'ShoulderPitch': (13,17), 'ShoulderRoll': (14,18), 'ShoulderYaw': (15,19),
+                        'ElbowRoll': (16,20), 
+                        }
+        mirror_weight = 0.5
+        no_mirror = 3*4 # number of elements in the obs vector that do not need mirroring. They must be placed in the front of the obs vector
