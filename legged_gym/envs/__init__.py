@@ -62,3 +62,4 @@ task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
 task_registry.register("jet_flat_sym", Jet, JetFlatCfg(), JetFlatCfgPPOSym()) # With symmetry loss from https://dl.acm.org/doi/pdf/10.1145/3197517.3201397
 task_registry.register("jet_fixed_flat_sym", Jet, JetFlatCfg_fixed(), JetFlatCfgPPOSym_fixed())
 task_registry.register("jet_fixed_flat_sym_centroid", Jet, JetFlatCfg_fixed_centroid(), JetFlatCfgPPOSym_fixed_centroid())
+
