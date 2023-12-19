@@ -2,16 +2,17 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
 from legged_gym.envs.base.base_config import BaseConfig
 from math import pi
 
-class JetFlatCfg( LeggedRobotCfg ):
+class JetRoughCfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_envs = 4096 # 4096 is optimal according to paper
-        num_observations = 75 # 169 + 10*3
+        num_observations = 75 # 196 if not blind, 75 if blind
         num_actions = 21 # 12(lower) + 16(upper)
 
     
     class terrain( LeggedRobotCfg.terrain):
-        mesh_type = 'plane'
-        measure_heights = False
+        measure_heights = False # blind!!!
+        measured_points_x = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5] # 1mx1m rectangle (without center line)
+        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
 
     class init_state( LeggedRobotCfg.init_state ):
         deg2rad = pi / 180
@@ -89,18 +90,17 @@ class JetFlatCfg( LeggedRobotCfg ):
             torques = -5.e-6 #-5.e-7
             dof_acc = -2.e-7 # -2.e-7
             lin_vel_z = -0.5
-            feet_air_time = 10. # 5.
+            feet_air_time = 5. # 5.
             dof_pos_limits = -1.    # -1.
             no_fly = .25 # .25
             dof_vel = -0.0
             ang_vel_xy = -0.
             feet_contact_forces = -1.e-4 # -1.e-3
             tracking_lin_vel = 4.
-            angular_momentum = -.05
             upper_motion = -1. # -1.e-1
                         
     class commands:
-        curriculum = True
+        curriculum = False
         max_curriculum = 4.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 10. # time before command are changed[s]
@@ -113,61 +113,6 @@ class JetFlatCfg( LeggedRobotCfg ):
 
 
 class LeggedRobotCfgPPO(BaseConfig):
-    seed = 1
-    runner_class_name = 'OnPolicyRunner'
-    class policy:
-        init_noise_std = 1.0
-        actor_hidden_dims = [512, 256, 128]
-        critic_hidden_dims = [512, 256, 128]
-        activation = 'sigmoid' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
-        # only for 'ActorCriticRecurrent':
-        # rnn_type = 'lstm'
-        # rnn_hidden_size = 512
-        # rnn_num_layers = 1
-        
-    class algorithm:
-        # training params
-        value_loss_coef = 1.0
-        use_clipped_value_loss = True
-        clip_param = 0.2
-        entropy_coef = 0.01
-        num_learning_epochs = 5
-        num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 1.e-3 #5.e-4
-        schedule = 'adaptive' # could be adaptive, fixed
-        gamma = 0.99
-        lam = 0.95
-        desired_kl = 0.01
-        max_grad_norm = 1.
-
-    class runner:
-        policy_class_name = 'ActorCritic'
-        algorithm_class_name = 'PPO'
-        num_steps_per_env = 24 # per iteration. Increase for better performance but longer training time
-        max_iterations = 1000 # number of policy updates
-
-        # logging
-        save_interval = 50 # check for potential saves every this many iterations
-        experiment_name = 'test'
-        run_name = ''
-        # load and resume
-        resume = False
-        load_run = -1
-        checkpoint = -1 
-        resume_path = None # updated from load_run and chkpt
-        
-class JetFlatCfgPPO( LeggedRobotCfgPPO):
-    
-    class runner( LeggedRobotCfgPPO.runner ):
-        run_name = ''
-        experiment_name = 'flat_jet'
-
-    class algorithm( LeggedRobotCfgPPO.algorithm):
-        entropy_coef = 0.01
-
-#################SYMMETRIC###################
-
-class LeggedRobotCfgPPOSym(BaseConfig):
     seed = 1
     runner_class_name = 'OnPolicyRunnerSym'
     class policy:
@@ -211,13 +156,13 @@ class LeggedRobotCfgPPOSym(BaseConfig):
         checkpoint = -1 
         resume_path = None # updated from load_run and chkpt
 
-class JetFlatCfgPPOSym( LeggedRobotCfgPPOSym):
+class JetRoughCfgPPO( LeggedRobotCfgPPO):
     
-    class runner( LeggedRobotCfgPPOSym.runner ):
+    class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
-        experiment_name = 'flat_jet_sym'
+        experiment_name = 'jet_rough'
 
-    class algorithm( LeggedRobotCfgPPOSym.algorithm):
+    class algorithm( LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
         mirror = {'HipYaw': (0,6), 'HipRoll': (1,7), 'HipPitch': (2,8), 
                         'KneePitch': (3,9), 
