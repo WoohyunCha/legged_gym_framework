@@ -41,6 +41,8 @@ from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
 from .jet.jet import Jet
 from .jet.jet_rough_config import JetRoughCfg, JetRoughCfgPPO
 from .jet.jet_flat_config import JetFlatCfg, JetFlatCfgPPO
+from .bolt10.bolt10 import Bolt10
+from .bolt10.bolt10_config import Bolt10Cfg, Bolt10CfgPPO
 
 
 
@@ -56,3 +58,5 @@ task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() 
 
 task_registry.register("jet_rough", Jet, JetRoughCfg(), JetRoughCfgPPO())
 task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
+
+task_registry.register("bolt10", Bolt10, Bolt10Cfg(), Bolt10CfgPPO())

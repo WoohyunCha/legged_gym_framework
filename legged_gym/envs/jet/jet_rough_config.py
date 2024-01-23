@@ -164,7 +164,8 @@ class JetRoughCfgPPO( LeggedRobotCfgPPO):
 
     class algorithm( LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
-        mirror = {'HipYaw': (0,6), 'HipRoll': (1,7), 'HipPitch': (2,8), 
+        mirror = {}
+        mirror_neg = {'HipYaw': (0,6), 'HipRoll': (1,7), 'HipPitch': (2,8), 
                         'KneePitch': (3,9), 
                         'AnklePitch': (4,10),'AnkleRoll': (5,11),
                         'WaistYaw' : (12, 12),
