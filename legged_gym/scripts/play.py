@@ -46,11 +46,15 @@ def play(args):
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.curriculum = False
-    env_cfg.noise.add_noise = False
-    env_cfg.domain_rand.randomize_friction = False
-    env_cfg.domain_rand.push_robots = False
+    env_cfg.noise.add_noise = True
+    env_cfg.domain_rand.randomize_friction = True
+    env_cfg.domain_rand.push_robots = True
+    env_cfg.domain_rand.ext_force_robots = True
+    env_cfg.env.episode_length_s = 20
     
     if args.speed is not None:
+        env_cfg.commands.num_commands = 4
+        env_cfg.commands.heading_command = True        
         env_cfg.commands.ranges.lin_vel_x = [args.speed, args.speed]
         env_cfg.commands.ranges.lin_vel_y = [0., 0.]
         env_cfg.commands.ranges.heading = [0.,0.]

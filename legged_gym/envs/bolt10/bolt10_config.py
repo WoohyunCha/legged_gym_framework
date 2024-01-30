@@ -54,7 +54,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
     class terrain( LeggedRobotCfg.terrain):
         mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
-        vertical_scale = 0.002 # [m]
+        vertical_scale = 0.001 # [m]
         border_size = 25 # [m]
         curriculum = True
         static_friction = 1.0
@@ -75,6 +75,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
+        difficulty = [0.1, 0.25, 0.4]
 
     class commands( LeggedRobotCfg.commands):
         curriculum = True
@@ -149,7 +150,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         foot_name = 'Foot'
         penalize_contacts_on = []
         # penalize_contacts_on = ['bolt_lower_leg_right_side', 'bolt_body', 'bolt_hip_fe_left_side', 'bolt_hip_fe_right_side', ' bolt_lower_leg_left_side', 'bolt_shoulder_fe_left_side', 'bolt_shoulder_fe_right_side', 'bolt_trunk', 'bolt_upper_leg_left_side', 'bolt_upper_leg_right_side']
-        terminate_after_contacts_on = ['base_link', 'L_HipRoll_Link', 'L_HipPitch_Link', 'R_HipRoll_Link', 'R_HipPitch_Link', 'Upper_Leg', 'base_link']
+        terminate_after_contacts_on = ['base_link', 'L_HipRoll_Link', 'L_HipPitch_Link', 'R_HipRoll_Link', 'R_HipPitch_Link', 'Upper_Leg']
         
         
         disable_gravity = False
@@ -173,11 +174,20 @@ class Bolt10Cfg( LeggedRobotCfg ):
         randomize_friction = True
         friction_range = [0.5, 1.25]
         randomize_base_mass = True
-        added_mass_range = [-.5, .5]
+        added_mass_range = [-.3, .3]
         push_robots = True
         push_interval_s = 3
         max_push_vel_xy = 1.
-
+        ext_force_robots = True
+        ext_force_randomize_interval_s = 5
+        ext_force_vector_6d_range = [(-30,30), (-30,30), (-30, 30), (-3,3), (-3,3), (-3,3)]
+        ext_force_interval_s = 2
+        ext_force_duration_s = [0.1, 1.]
+        randomize_dof_friction = True
+        dof_friction_interval_s = 5
+        dof_friction = [0, 0.03]
+        dof_damping = [0, 0.003]
+        
 
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.95
@@ -185,21 +195,54 @@ class Bolt10Cfg( LeggedRobotCfg ):
         soft_torque_limit = 0.9
         max_contact_force = 20.
         only_positive_rewards = False
+        orientation_sigma = 0.25
+        tracking_sigma = 0.5
+
+        base_height_target = 0.55
+        
         class scales( LeggedRobotCfg.rewards.scales ):
             termination = -100.
-            tracking_ang_vel = 1.0
-            torques = -5.e-6 #-5.e-7
-            dof_acc = -2.e-7 # -2.e-7
-            lin_vel_z = -0.5
-            feet_air_time = 5. # 5.
-            dof_pos_limits = -1.    # -1.
-            no_fly = 1. # .25
+            # traking
+            tracking_lin_vel = 10
+            tracking_ang_vel = 10.
+
+            # regulation in task space
+            lin_vel_z = -0.
+            ang_vel_xy = -0.0
+            
+            # regulation in joint space
+            torques = -5.e-6 # -3.e-3
             dof_vel = -0.0
-            ang_vel_xy = -0.
-            feet_contact_forces = -1.e-2 # -1.e-3
-            tracking_lin_vel = 10.
-            feet_outwards = -5.
-            joint_power = -1.e-1 # -5.e-2
+            dof_acc = -2.e-7 # -2.e-7
+            action_rate = -0.0001 # -0.000001
+
+            # walking specific rewards
+            feet_air_time = 0.
+            collision = -0.
+            feet_stumble = -0.0 
+            stand_still = 0.0
+            no_fly = 0.0
+            feet_contact_forces = -1.e-3
+            
+            # joint limits
+            torque_limits = -0.01
+            dof_vel_limits = -0
+            dof_pos_limits = -10.
+            
+            # DRS
+            orientation = 0.0 # Rui
+            base_height = 0.0
+            joint_regularization = 0.0
+
+            # PBRS rewards
+            ori_pb = 8.0
+            baseHeight_pb = 2.0
+            jointReg_pb = 3.0
+            action_rate_pb = 0.0
+
+            stand_still_pb = 1.0
+            no_fly_pb = 5.0
+            feet_air_time_pb = 2.
 
     class normalization:
         class obs_scales:
@@ -212,7 +255,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         clip_actions = 44.
 
     class noise:
-        add_noise = False
+        add_noise = True
         noise_level = 1.0 # scales other values
         class noise_scales:
             dof_pos = 0.005
