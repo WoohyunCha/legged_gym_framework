@@ -110,7 +110,11 @@ class LeggedRobot(BaseTask):
         """
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
-
+        
+        if hasattr(self, "custom_post_physics_step"):
+            print("TEST 1")
+            self.custom_post_physics_step()
+            
         self.episode_length_buf += 1
         self.common_step_counter += 1
 
@@ -165,7 +169,11 @@ class LeggedRobot(BaseTask):
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
         self._resample_commands(env_ids)
-
+        
+        if hasattr(self, "_custom_reset"):
+            print("TEST 2")
+            self._custom_reset(env_ids)
+            
         # reset buffers
         self.last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
@@ -697,6 +705,9 @@ class LeggedRobot(BaseTask):
         self.termination_contact_indices = torch.zeros(len(termination_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(termination_contact_names)):
             self.termination_contact_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], termination_contact_names[i])
+        if hasattr(self, "_custom_create_envs"):
+            print("TEST 3")
+            self._custom_create_envs()
 
     def _get_env_origins(self):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
@@ -736,7 +747,10 @@ class LeggedRobot(BaseTask):
         self.max_episode_length = np.ceil(self.max_episode_length_s / self.dt)
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
-
+        if hasattr(self, "_custom_parse_cfg"):
+            print("TEST 4")
+            self.custom_parse_cfg(cfg)
+            
     def _draw_debug_vis(self):
         """ Draws visualizations for dubugging (slows down simulation a lot).
             Default behaviour: draws height measurement points
