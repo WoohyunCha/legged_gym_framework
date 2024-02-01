@@ -33,17 +33,20 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class Bolt10Cfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_envs = 4096 # robot count 4096
-        num_observations = 42
+        num_observations = 39
         '''
-        self.base_lin_vel:  torch.Size([4096, 3])
+   
         self.base_ang_vel:  torch.Size([4096, 3])
         self.projected_gravity:  torch.Size([4096, 3])
         self.commands[:, :3]:  torch.Size([4096, 3])
-        (self.dof_pos - self.default_dof_pos):  torch.Size([4096, 6])
-        self.dof_vel:  torch.Size([4096, 6])
-        self.actions:  torch.Size([4096, 6])
-
-        3 + 3 + 3 + 3 + 10 + 10 + 10 = 42(num_observation)
+        (self.dof_pos - self.default_dof_pos):  torch.Size([4096, 10])
+        self.dof_vel:  torch.Size([4096, 10])
+        self.actions:  torch.Size([4096, 10])
+        
+        Observations should be stacked so that cartesian space vectors are in front, followed by joint space vectors.
+        Values that do not need any mirroring (ex. terrain parameters) should be stacked in the back.
+        
+        3 + 3 + 3 + 10 + 10 + 10 = 39(num_observation)
         '''
         num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
         num_actions = 10 # robot actuation
@@ -52,7 +55,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         episode_length_s = 10 # episode length in seconds
 
     class terrain( LeggedRobotCfg.terrain):
-        mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'plane' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.001 # [m]
         border_size = 25 # [m]
@@ -75,7 +78,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
-        difficulty = [0.1, 0.25, 0.4]
+        difficulty = [0.1, 0.2, 0.3]
 
     class commands( LeggedRobotCfg.commands):
         curriculum = True
@@ -181,7 +184,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         ext_force_robots = True
         ext_force_randomize_interval_s = 5
         ext_force_vector_6d_range = [(-30,30), (-30,30), (-30, 30), (-3,3), (-3,3), (-3,3)]
-        ext_force_interval_s = 2
+        ext_force_interval_s = 5
         ext_force_duration_s = [0.1, 1.]
         randomize_dof_friction = True
         dof_friction_interval_s = 5
@@ -198,7 +201,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         orientation_sigma = 0.25
         tracking_sigma = 0.5
 
-        base_height_target = 0.55
+        base_height_target = 0.6
         
         class scales( LeggedRobotCfg.rewards.scales ):
             termination = -100.
@@ -236,12 +239,12 @@ class Bolt10Cfg( LeggedRobotCfg ):
 
             # PBRS rewards
             ori_pb = 8.0
-            baseHeight_pb = 2.0
-            jointReg_pb = 3.0
+            baseHeight_pb = 3.0
+            jointReg_pb = 4.0
             action_rate_pb = 0.0
 
             stand_still_pb = 1.0
-            no_fly_pb = 5.0
+            no_fly_pb = 3.0
             feet_air_time_pb = 2.
 
     class normalization:
@@ -319,14 +322,23 @@ class Bolt10CfgPPO( LeggedRobotCfgPPO ):
         lam = 0.95
         desired_kl = 0.01
         max_grad_norm = 1.
+        
+        
         # Symmetric loss
         mirror = {'HipPitch': (2,7), 
                         'KneePitch': (3,8), 
                         'AnklePitch': (4,9),
                         } # Joint pairs that need to be mirrored
         mirror_neg = {'HipYaw': (0,5), 'HipRoll': (1,6), } # Joint pairs that need to be mirrored and signs must be changed
-        mirror_weight = 0.5
-        no_mirror = 3*4 # number of elements in the obs vector that do not need mirroring. They must be placed in the front of the obs vector
+        mirror_weight = 4
+        # The following lists indicate the ranges in the observation vector indices, for which specific mirroring method should applied
+        # For example, cartesian_angular_mirror = [(0,3), (6,12)] indicate that the cartesian angular mirror operation should be applied
+        # to the 0th~2nd, and the 6th~8th, 9th~11th elements of the observation vector.
+        cartesian_angular_mirror = [(0,3)]
+        cartesian_linear_mirror = [(3,6)]
+        cartesian_command_mirror = [(6,9)]
+        # The following list indicate the ranges in the observation vector indices, for which no mirroring is necessary.
+        no_mirror = []
         
     class runner( LeggedRobotCfgPPO.runner ):
         policy_class_name = 'ActorCritic'
