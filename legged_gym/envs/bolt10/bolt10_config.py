@@ -82,15 +82,15 @@ class Bolt10Cfg( LeggedRobotCfg ):
 
     class commands( LeggedRobotCfg.commands):
         curriculum = True
-        max_curriculum = 3.0
+        max_curriculum = 2.
         num_commands = 3 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
         
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-1.0, 1.0] # min max [m/s] seems like less than or equal to 0.2 it sends 0 command
-            lin_vel_y = [-1.0, 1.0]   # min max [m/s]
-            ang_vel_yaw = [-1, 1]    # min max [rad/s]
+            lin_vel_x = [-1., 1.] # min max [m/s] seems like less than or equal to 0.2 it sends 0 command
+            lin_vel_y = [-1., 1.]   # min max [m/s]
+            ang_vel_yaw = [-1., 1.]    # min max [rad/s]
             heading = [-3.14, 3.14]
             
 
@@ -190,6 +190,9 @@ class Bolt10Cfg( LeggedRobotCfg ):
         dof_friction_interval_s = 5
         dof_friction = [0, 0.03]
         dof_damping = [0, 0.003]
+        randomize_ground_friction = True
+        ground_friction_interval_s = 10
+        
         
 
     class rewards( LeggedRobotCfg.rewards ):
@@ -201,7 +204,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         orientation_sigma = 0.25
         tracking_sigma = 0.5
 
-        base_height_target = 0.6
+        base_height_target = 0.5
         
         class scales( LeggedRobotCfg.rewards.scales ):
             termination = -100.
@@ -215,7 +218,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
             
             # regulation in joint space
             torques = -5.e-6 # -3.e-3
-            dof_vel = -0.0
+            dof_vel = 0
             dof_acc = -2.e-7 # -2.e-7
             action_rate = -0.0001 # -0.000001
 
@@ -238,14 +241,14 @@ class Bolt10Cfg( LeggedRobotCfg ):
             joint_regularization = 0.0
 
             # PBRS rewards
-            ori_pb = 8.0
+            ori_pb = 5.0
             baseHeight_pb = 3.0
-            jointReg_pb = 4.0
+            jointReg_pb = 3.0
             action_rate_pb = 0.0
 
             stand_still_pb = 1.0
-            no_fly_pb = 3.0
-            feet_air_time_pb = 2.
+            no_fly_pb = 5.0
+            feet_air_time_pb = 3.
 
     class normalization:
         class obs_scales:
@@ -297,11 +300,11 @@ class Bolt10Cfg( LeggedRobotCfg ):
 
 class Bolt10CfgPPO( LeggedRobotCfgPPO ):
     seed = 1
-    runner_class_name = 'OnPolicyRunnerSym'
+    runner_class_name = 'OnPolicyRunnerHistory'
     class policy:
         init_noise_std = 1.0
-        actor_hidden_dims = [512, 256, 128]
-        critic_hidden_dims = [512, 256, 128]
+        actor_hidden_dims =[512, 256, 128]# 
+        critic_hidden_dims = [512, 256, 128]#
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
         # only for 'ActorCriticRecurrent':
         # rnn_type = 'lstm'
@@ -345,6 +348,9 @@ class Bolt10CfgPPO( LeggedRobotCfgPPO ):
         algorithm_class_name = 'PPO_sym'
         num_steps_per_env = 24 # per iteration
         max_iterations = 5000 # number of policy updates
+        
+        # Optional. Choose the length of state history for the algorithm to use.
+        history_len = 5
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations

@@ -133,10 +133,10 @@ class Bolt10(LeggedRobot):
         # Reward joint poses and symmetry
         error = 0.
         # Yaw joints regularization around 0
-        # error += self.sqrdexp(
-        #      (self.dof_pos[:, 2]) / self.cfg.normalization.obs_scales.dof_pos)
-        # error += self.sqrdexp(
-        #      (self.dof_pos[:, 5]) / self.cfg.normalization.obs_scales.dof_pos)
+        error += self.sqrdexp(
+             (self.dof_pos[:, 0]) / self.cfg.normalization.obs_scales.dof_pos)
+        error += self.sqrdexp(
+             (self.dof_pos[:, 5]) / self.cfg.normalization.obs_scales.dof_pos)
         # Ab/ad joint symmetry
         error += self.sqrdexp(
             ( (self.dof_pos[:, 0] ) - (self.dof_pos[:, 5]) )
@@ -146,7 +146,10 @@ class Bolt10(LeggedRobot):
             ( ((self.dof_pos[:, 1]) - self.default_dof_pos[:, 1]) - ((self.dof_pos[:, 6]) - self.default_dof_pos[:, 6]))
             / self.cfg.normalization.obs_scales.dof_pos)
         # print("self.dof_pos[0, 6]: ", self.dof_pos[0, 1], "// self.dof_pos[0, 6]: ", self.dof_pos[0, 6])
-        return error/2
+        error += 0.5 * self.sqrdexp(
+            ( self.dof_pos[:, 2] + self.dof_pos[:, 7])
+            / self.cfg.normalization.obs_scales.dof_pos)        
+        return error/4.5
     
     # Potential-based rewards
     
@@ -234,6 +237,12 @@ class Bolt10(LeggedRobot):
             raise ValueError("Terrain mesh type not recognised. Allowed types are [None, plane, heightfield, trimesh]")
         self._create_envs()
 
+    def destroy_sim(self):
+        """Destroy simulation, terrain and environments
+        """
+        self.gym.destroy_sim(self.sim)
+        print("Simulation destroyed")
+
     def compute_observations(self):
         """ Computes observations
         """
@@ -250,6 +259,15 @@ class Bolt10(LeggedRobot):
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
         # add noise if needed
+
+        if self.num_privileged_obs is not None:
+            self.privileged_obs_buf = torch.cat((
+                self.ground_dynamic_friction * torch.ones((self.num_envs, 1)),
+                self.ground_static_friction * torch.ones((self.num_envs, 1)),
+                self.ext_forces[:, 0, :],
+                self.ext_torques[:, 0, :]
+            ), dim=1)
+            pass # TODO
 
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
@@ -272,6 +290,20 @@ class Bolt10(LeggedRobot):
                 self.gym.set_actor_dof_properties(envs, 0, props)
         if self.cfg.domain_rand.ext_force_robots and (self.common_step_counter % self.cfg.domain_rand.ext_force_randomize_interval == 0):
             self.cfg.domain_rand.ext_force_duration = np.ceil(np.random.uniform(*self.cfg.domain_rand.ext_force_duration_s) / self.dt) 
+        '''
+        # This takes too much time. Must find another way to randomize ground friction instead of randomizing at real time
+        # Maybe I should set grids
+        if self.cfg.domain_rand.randomize_ground_friction and (self.common_step_counter % self.cfg.domain_rand.ground_friction_interval == 0):
+            mesh_type = self.cfg.terrain.mesh_type
+            if mesh_type in ['heightfield', 'trimesh']:
+                self.terrain = custom_Terrain(self.cfg.terrain, self.num_envs)
+            if mesh_type=='plane':
+                self._create_ground_plane()
+            elif mesh_type=='heightfield':
+                self._create_heightfield()
+            elif mesh_type=='trimesh':
+                self._create_trimesh()        '''
+
 
     def step(self, actions):
         """ Apply actions, simulate, call self.post_physics_step()
@@ -283,7 +315,7 @@ class Bolt10(LeggedRobot):
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device) # at reset, action is zero.
         # step physics and render each frame
         self.pre_physics_step()
-        self.render()
+        self.render(sync_frame_time=True)
 
 
         for _ in range(self.cfg.control.decimation): # compute torque 4 times
@@ -340,7 +372,7 @@ class Bolt10(LeggedRobot):
         self.cfg.domain_rand.ext_force_interval = np.ceil(self.cfg.domain_rand.ext_force_interval_s / self.dt)
         self.cfg.domain_rand.ext_force_randomize_interval = np.ceil(self.cfg.domain_rand.ext_force_randomize_interval_s / self.dt)
         self.cfg.domain_rand.dof_friction_interval = np.ceil(self.cfg.domain_rand.dof_friction_interval_s / self.dt)      
-        
+        self.cfg.domain_rand.ground_friction_interval = np.ceil(self.cfg.domain_rand.ground_friction_interval_s / self.dt)
         
         
     ##############Randomize ground friction##############
@@ -348,9 +380,13 @@ class Bolt10(LeggedRobot):
     def _create_ground_plane(self):
         plane_params = gymapi.PlaneParams()
         plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-
+        plane_params.static_friction = self.cfg.terrain.static_friction * np.random.uniform(0.9, 1.1)
+        plane_params.dynamic_friction = self.cfg.terrain.dynamic_friction * np.random.uniform(0.9, 1.1)
         plane_params.restitution = self.cfg.terrain.restitution
         self.gym.add_ground(self.sim, plane_params)
+        if self.num_privileged_obs is not None:
+            self.ground_static_friction = plane_params.static_friction
+            self.ground_dynamic_friction = plane_params.dynamic_friction
     
     def _create_heightfield(self):
         hf_params = gymapi.HeightFieldParams()
@@ -368,7 +404,10 @@ class Bolt10(LeggedRobot):
 
         self.gym.add_heightfield(self.sim, self.terrain.heightsamples, hf_params)
         self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
-    
+        if self.num_privileged_obs is not None:
+            self.ground_static_friction = hf_params.static_friction
+            self.ground_dynamic_friction = hf_params.dynamic_friction
+                
     def _create_trimesh(self):
         tm_params = gymapi.TriangleMeshParams()
         tm_params.nb_vertices = self.terrain.vertices.shape[0]
@@ -382,6 +421,16 @@ class Bolt10(LeggedRobot):
         tm_params.restitution = self.cfg.terrain.restitution
         self.gym.add_triangle_mesh(self.sim, self.terrain.vertices.flatten(order='C'), self.terrain.triangles.flatten(order='C'), tm_params)   
         self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
+        if self.num_privileged_obs is not None:
+            self.ground_static_friction = tm_params.static_friction
+            self.ground_dynamic_friction = tm_params.dynamic_friction
+                    
+    def set_camera(self, position, lookat):
+        """ Set camera position and direction
+        """
+        cam_pos = gymapi.Vec3(position[0], position[1], position[2])
+        cam_target = gymapi.Vec3(lookat[0], lookat[1], lookat[2])
+        self.gym.viewer_camera_look_at(self.viewer,None, cam_pos, cam_target)
         
         # ##################### HELPER FUNCTIONS ################################## #
 
