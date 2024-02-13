@@ -35,7 +35,7 @@ from collections import deque
 
 import isaacgym
 from legged_gym.envs import *
-from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, Logger
+from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, custom_task_registry, Logger
 
 import numpy as np
 import torch
@@ -56,7 +56,12 @@ def deque_to_tensor(buffer : deque) -> torch.Tensor:
     return ret
 
 def custom_play(args):
-    env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
+    if args.task in task_registry.task_classes:
+        registry = task_registry
+    elif args.task in custom_task_registry.task_classes:
+        registry = custom_task_registry
+    
+    env_cfg, train_cfg = registry.get_cfgs(name=args.task)
     # override some parameters for testing
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, 5)
     env_cfg.terrain.num_rows = 5
@@ -81,13 +86,13 @@ def custom_play(args):
     obs_history = deque(maxlen = history_len)
 
     # prepare environment
-    env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
+    env, _ = registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
     for i in range(history_len):
         obs_history.append(torch.zeros(size=(env_cfg.env.num_envs, env_cfg.env.num_observations), device=env.device))
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg) # env is reset here
+    ppo_runner, train_cfg = registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg) # env is reset here
     policy = ppo_runner.get_inference_policy(device=env.device)
     
     # export policy as a jit module (used to run it from C++)
@@ -99,15 +104,18 @@ def custom_play(args):
     logger = Logger(env.dt)
     robot_index = 0 # which robot is used for logging
     joint_index = 1 # which joint is used for logging
-    stop_state_log = 100 # number of steps before plotting states
+    start_state_log = np.ceil(2. / env.dt) 
+    stop_state_log = np.ceil(5. / env.dt) # number of steps before plotting states
     stop_rew_log = env.max_episode_length + 1 # number of steps before print average episode rewards
     # camera_position = np.array(env_cfg.viewer.pos, dtype=np.float64)
     # camera_vel = np.array([1., 1., 0.])
     # camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     camera_direction = np.array([3,3, 3])
     img_idx = 0
-
-    for i in range(10*int(env.max_episode_length)):
+    
+    SAVE_DIR = 'play_plot.png'
+    
+    for i in range(3*int(env.max_episode_length)):
         obs_history.append(obs)
         obs_history_tensor = deque_to_tensor(obs_history)
         actions = policy(obs_history_tensor.detach())
@@ -122,13 +130,18 @@ def custom_play(args):
             camera_position = env.rb_states[0, 0:3].to('cpu') + torch.from_numpy(camera_direction)   
             env.set_camera(camera_position, camera_position - torch.from_numpy(camera_direction))
 
-        if i < stop_state_log:
+        if i < stop_state_log and i > start_state_log:
             logger.log_states(
                 {
-                    'dof_pos_target': actions[robot_index, joint_index].item() * env.cfg.control.action_scale,
-                    'dof_pos': env.dof_pos[robot_index, joint_index].item(),
-                    'dof_vel': env.dof_vel[robot_index, joint_index].item(),
-                    'dof_torque': env.torques[robot_index, joint_index].item(),
+                    'hip_pitch_vel': env.dof_vel[robot_index, 2].item(),
+                    'knee_pitch_vel': env.dof_vel[robot_index, 3].item(),
+                    'ankle_pitch_vel': env.dof_vel[robot_index, 4].item(),
+                    'hip_pitch_pos': env.dof_pos[robot_index, 2].item(),
+                    'knee_pitch_pos': env.dof_pos[robot_index, 3].item(),                    
+                    'ankle_pitch_pos': env.dof_pos[robot_index, 4].item(),                    
+                    'hip_pitch_torque': env.torques[robot_index, 2].item(),
+                    'knee_pitch_torque': env.torques[robot_index, 3].item(),
+                    'ankle_pitch_torque': env.torques[robot_index, 4].item(),
                     'command_x': env.commands[robot_index, 0].item(),
                     'command_y': env.commands[robot_index, 1].item(),
                     'command_yaw': env.commands[robot_index, 2].item(),
@@ -140,7 +153,8 @@ def custom_play(args):
                 }
             )
         elif i==stop_state_log:
-            logger.plot_states()
+            print("Plot states to : ", SAVE_DIR)
+            logger.plot_states_mainthread(save_fig=True, save_dir=SAVE_DIR)
         if  0 < i < stop_rew_log:
             if infos["episode"]:
                 num_episodes = torch.sum(env.reset_buf).item()

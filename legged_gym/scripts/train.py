@@ -85,12 +85,11 @@ def train(args):
     env_cfg_play.env.episode_length_s = 10
     env_cfg_play.commands.num_commands = 4
     env_cfg_play.commands.heading_command = True        
-    env_cfg_play.commands.ranges.lin_vel_x = [1., 1.]
+    env_cfg_play.commands.ranges.lin_vel_x = [.8, .8]
     env_cfg_play.commands.ranges.lin_vel_y = [0., 0.]
     env_cfg_play.commands.ranges.heading = [0.,0.]
     env_cfg_play.domain_rand.randomize_dof_friction = False
-    env_cfg_play.domain_rand.randomize_ground_friction = False
-    env_cfg_play.domain_rand.randomize_base_mass = True
+    env_cfg_play.domain_rand.randomize_base_mass = False
 
     obs_history = deque(maxlen = history_len)
 
@@ -130,7 +129,8 @@ def train(args):
     logger = Logger(env.dt)
     robot_index = 0 # which robot is used for logging
     joint_index = 3 # which joint is used for logging - knee pitch
-    stop_state_log = 100 # number of steps before plotting states
+    start_state_log = np.ceil(2. / env.dt)
+    stop_state_log =np.ceil(5. / env.dt) # number of steps before plotting states
     stop_rew_log = env.max_episode_length + 1 # number of steps before print average episode rewards
     camera_direction = np.array([1., 1., 1.])
     img_idx = 0
@@ -150,13 +150,18 @@ def train(args):
             camera_position = env.rb_states[0, 0:3].to('cpu') + torch.from_numpy(camera_direction)   
             env.set_camera(camera_position, camera_position - torch.from_numpy(camera_direction))
 
-        if i < stop_state_log:
+        if i < stop_state_log and i > start_state_log:
             logger.log_states(
                 {
-                    'dof_pos_target': actions[robot_index, joint_index].item() * env.cfg.control.action_scale,
-                    'dof_pos': env.dof_pos[robot_index, joint_index].item(),
-                    'dof_vel': env.dof_vel[robot_index, joint_index].item(),
-                    'dof_torque': env.torques[robot_index, joint_index].item(),
+                    'hip_pitch_vel': env.dof_vel[robot_index, 2].item(),
+                    'knee_pitch_vel': env.dof_vel[robot_index, 3].item(),
+                    'ankle_pitch_vel': env.dof_vel[robot_index, 4].item(),
+                    'hip_pitch_pos': env.dof_pos[robot_index, 2].item(),
+                    'knee_pitch_pos': env.dof_pos[robot_index, 3].item(),                    
+                    'ankle_pitch_pos': env.dof_pos[robot_index, 4].item(),                    
+                    'hip_pitch_torque': env.torques[robot_index, 2].item(),
+                    'knee_pitch_torque': env.torques[robot_index, 3].item(),
+                    'ankle_pitch_torque': env.torques[robot_index, 4].item(),
                     'command_x': env.commands[robot_index, 0].item(),
                     'command_y': env.commands[robot_index, 1].item(),
                     'command_yaw': env.commands[robot_index, 2].item(),
