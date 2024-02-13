@@ -35,7 +35,6 @@ class Bolt10Cfg( LeggedRobotCfg ):
         num_envs = 4096 # robot count 4096
         num_observations = 39
         '''
-   
         self.base_ang_vel:  torch.Size([4096, 3])
         self.projected_gravity:  torch.Size([4096, 3])
         self.commands[:, :3]:  torch.Size([4096, 3])
@@ -48,14 +47,26 @@ class Bolt10Cfg( LeggedRobotCfg ):
         
         3 + 3 + 3 + 10 + 10 + 10 = 39(num_observation)
         '''
-        num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        num_privileged_obs = 150 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        '''
+        self.obs_buf: torch.Size([4096, 39])
+        self.base_lin_vel: torch.Size([4096, 3])
+        self.ext_forces: torch.Size([4096, 3])
+        self.ext_torques: torch.Size([4096, 3])
+        self.friction_coeffs: torch.Size([4096, 1])
+        self.dof_props['friction']: torch.Size([4096, 10])
+        self.dof_props['damping']: torch.Size([4096, 10])
+        self.measured_heights: torch.Size([4096, 36])
+        
+        39 + 3 + 3 + 3 + 1 + 10 + 10 + 81 = 150
+        '''
         num_actions = 10 # robot actuation
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
         episode_length_s = 10 # episode length in seconds
 
     class terrain( LeggedRobotCfg.terrain):
-        mesh_type = 'plane' # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.001 # [m]
         border_size = 25 # [m]
@@ -65,8 +76,8 @@ class Bolt10Cfg( LeggedRobotCfg ):
         restitution = 0.
         # rough terrain only:
         measure_heights = False
-        measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] # 1mx1.6m rectangle (without center line)
-        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
+        measured_points_x = [-0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4] # 1mx1m rectangle (without center line)
+        measured_points_y = [-0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4]
         selected = False # select a unique terrain type and pass all arguments
         terrain_kwargs = None # Dict of arguments for selected terrain
         max_init_terrain_level = 5 # starting curriculum state
@@ -82,7 +93,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
 
     class commands( LeggedRobotCfg.commands):
         curriculum = True
-        max_curriculum = 2.
+        max_curriculum = 1.
         num_commands = 3 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
@@ -174,13 +185,13 @@ class Bolt10Cfg( LeggedRobotCfg ):
         thickness = 0.01
 
     class domain_rand:
-        randomize_friction = True
+        randomize_friction = True # Randomizes dof shape friction. Simulated ground friction is the mean of shape friction and terrain friction
         friction_range = [0.5, 1.25]
         randomize_base_mass = True
         added_mass_range = [-.3, .3]
         push_robots = True
         push_interval_s = 3
-        max_push_vel_xy = 1.
+        max_push_vel_xy = .5
         ext_force_robots = True
         ext_force_randomize_interval_s = 5
         ext_force_vector_6d_range = [(-30,30), (-30,30), (-30, 30), (-3,3), (-3,3), (-3,3)]
@@ -190,8 +201,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         dof_friction_interval_s = 5
         dof_friction = [0, 0.03]
         dof_damping = [0, 0.003]
-        randomize_ground_friction = True
-        ground_friction_interval_s = 10
+        
         
         
 
@@ -209,7 +219,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         class scales( LeggedRobotCfg.rewards.scales ):
             termination = -100.
             # traking
-            tracking_lin_vel = 10
+            tracking_lin_vel = 10.
             tracking_ang_vel = 10.
 
             # regulation in task space
@@ -217,8 +227,8 @@ class Bolt10Cfg( LeggedRobotCfg ):
             ang_vel_xy = -0.0
             
             # regulation in joint space
-            torques = -5.e-6 # -3.e-3
-            dof_vel = 0
+            torques = -5.e-7 # -5.e-7
+            dof_vel = 0.
             dof_acc = -2.e-7 # -2.e-7
             action_rate = -0.0001 # -0.000001
 
@@ -228,11 +238,11 @@ class Bolt10Cfg( LeggedRobotCfg ):
             feet_stumble = -0.0 
             stand_still = 0.0
             no_fly = 0.0
-            feet_contact_forces = -1.e-3
+            feet_contact_forces = -3.e-3
             
             # joint limits
             torque_limits = -0.01
-            dof_vel_limits = -0
+            dof_vel_limits = -0.
             dof_pos_limits = -10.
             
             # DRS
@@ -247,8 +257,8 @@ class Bolt10Cfg( LeggedRobotCfg ):
             action_rate_pb = 0.0
 
             stand_still_pb = 1.0
-            no_fly_pb = 5.0
-            feet_air_time_pb = 3.
+            no_fly_pb = 4.0
+            feet_air_time_pb = 3. # 2.
 
     class normalization:
         class obs_scales:
@@ -257,6 +267,12 @@ class Bolt10Cfg( LeggedRobotCfg ):
             dof_pos = 1.0
             dof_vel = 0.05
             height_measurements = 5.0
+            
+            ext_forces = .1
+            ext_torques = 1.
+            friction_coeffs = 1.
+            dof_friction = 10.
+            dof_damping = 10.
         clip_observations = 100.
         clip_actions = 44.
 
@@ -333,7 +349,7 @@ class Bolt10CfgPPO( LeggedRobotCfgPPO ):
                         'AnklePitch': (4,9),
                         } # Joint pairs that need to be mirrored
         mirror_neg = {'HipYaw': (0,5), 'HipRoll': (1,6), } # Joint pairs that need to be mirrored and signs must be changed
-        mirror_weight = 4
+        mirror_weight = 0.5
         # The following lists indicate the ranges in the observation vector indices, for which specific mirroring method should applied
         # For example, cartesian_angular_mirror = [(0,3), (6,12)] indicate that the cartesian angular mirror operation should be applied
         # to the 0th~2nd, and the 6th~8th, 9th~11th elements of the observation vector.
@@ -350,10 +366,11 @@ class Bolt10CfgPPO( LeggedRobotCfgPPO ):
         max_iterations = 5000 # number of policy updates
         
         # Optional. Choose the length of state history for the algorithm to use.
-        history_len = 5
+        history_len = 10
+        critic_history_len = 1
 
         # logging
-        save_interval = 100 # check for potential saves every this many iterations
+        save_interval = 500 # check for potential saves every this many iterations
         experiment_name = 'bolt10'
         run_name = 'bolt10'
         # load and resume

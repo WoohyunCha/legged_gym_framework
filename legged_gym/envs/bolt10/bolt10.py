@@ -42,41 +42,16 @@ from typing import Tuple, Dict
 from legged_gym.envs import LeggedRobot
 
 class Bolt10(LeggedRobot):
-    def __init__(self, cfg: LeggedRobotCfg, sim_params, physics_engine, sim_device, headless):
-        """ Parses the provided config file,
-            calls create_sim() (which creates, simulation, terrain and environments),
-            initilizes pytorch buffers used during training
 
-        Args:
-            cfg (Dict): Environment config file
-            sim_params (gymapi.SimParams): simulation parameters
-            physics_engine (gymapi.SimType): gymapi.SIM_PHYSX (must be PhysX)
-            device_type (string): 'cuda' or 'cpu'
-            device_id (int): 0, 1, ...
-            headless (bool): Run without rendering if True
-        """
-        self.cfg = cfg
-        self.sim_params = sim_params
-        self.height_samples = None
-        self.debug_viz = False
-        self.init_done = False
-        self._parse_cfg(self.cfg)
-        super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
-
-        if not self.headless:
-            self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
-        self._init_buffers()
-        self._prepare_reward_function()
-        self.init_done = True
-        if hasattr(self, "_custom_init"):
-            self._custom_init(cfg)
-            
     def _custom_init(self, cfg):
         self.control_tick = torch.zeros(
             self.num_envs, 1, dtype=torch.int,
             device=self.device, requires_grad=False)
         self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
         self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
+        if self.num_privileged_obs is not None:
+            self.dof_props = torch.zeros((self.num_dofs, 2), device=self.device, dtype=torch.float) # includes dof friction (0) and damping (1) for each environment
+            #TODO
     
     def _reward_no_fly(self):
         contacts = self.contact_forces[:, self.feet_indices, 2] > 0.001
@@ -124,7 +99,7 @@ class Bolt10(LeggedRobot):
 
     def _reward_base_height(self):
         # Reward tracking specified base height
-        base_height = self.root_states[:, 2].unsqueeze(1)
+        base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
         error = (base_height-self.cfg.rewards.base_height_target)
         error = error.flatten()
         return torch.exp(-torch.square(error)/self.cfg.rewards.tracking_sigma)
@@ -133,10 +108,10 @@ class Bolt10(LeggedRobot):
         # Reward joint poses and symmetry
         error = 0.
         # Yaw joints regularization around 0
-        error += self.sqrdexp(
-             (self.dof_pos[:, 0]) / self.cfg.normalization.obs_scales.dof_pos)
-        error += self.sqrdexp(
-             (self.dof_pos[:, 5]) / self.cfg.normalization.obs_scales.dof_pos)
+        # error += self.sqrdexp(
+        #     (self.dof_pos[:, 0]) / self.cfg.normalization.obs_scales.dof_pos)
+        # error += self.sqrdexp(
+        #      (self.dof_pos[:, 5]) / self.cfg.normalization.obs_scales.dof_pos)
         # Ab/ad joint symmetry
         error += self.sqrdexp(
             ( (self.dof_pos[:, 0] ) - (self.dof_pos[:, 5]) )
@@ -146,10 +121,16 @@ class Bolt10(LeggedRobot):
             ( ((self.dof_pos[:, 1]) - self.default_dof_pos[:, 1]) - ((self.dof_pos[:, 6]) - self.default_dof_pos[:, 6]))
             / self.cfg.normalization.obs_scales.dof_pos)
         # print("self.dof_pos[0, 6]: ", self.dof_pos[0, 1], "// self.dof_pos[0, 6]: ", self.dof_pos[0, 6])
-        error += 0.5 * self.sqrdexp(
-            ( self.dof_pos[:, 2] + self.dof_pos[:, 7])
-            / self.cfg.normalization.obs_scales.dof_pos)        
-        return error/4.5
+        # error += 0.8 * self.sqrdexp(
+        #     ( self.dof_pos[:, 2] + self.dof_pos[:, 7])
+        #     / self.cfg.normalization.obs_scales.dof_pos)        
+        error +=  self.sqrdexp(
+            ( self.dof_vel[:, 4] + self.dof_vel[:, 9])
+            / self.cfg.normalization.obs_scales.dof_vel) 
+        # error += self.sqrdexp(
+        #     ( self.dof_vel[:, 9])
+        #     / self.cfg.normalization.obs_scales.dof_vel)         
+        return error/3.
     
     # Potential-based rewards
     
@@ -191,7 +172,67 @@ class Bolt10(LeggedRobot):
 
 
     def _init_buffers(self):
-        super()._init_buffers()
+        """ Initialize torch tensors which will contain simulation states and processed quantities
+        """
+        # get gym GPU state tensors
+        actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
+        dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
+        net_contact_forces = self.gym.acquire_net_contact_force_tensor(self.sim)
+        self.gym.refresh_dof_state_tensor(self.sim)
+        self.gym.refresh_actor_root_state_tensor(self.sim)
+        self.gym.refresh_net_contact_force_tensor(self.sim)
+
+        # create some wrapper tensors for different slices
+        self.root_states = gymtorch.wrap_tensor(actor_root_state)
+        self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
+        self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
+        self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
+        self.base_quat = self.root_states[:, 3:7]
+
+        self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
+
+        # initialize some data used later on
+        self.common_step_counter = 0
+        self.extras = {}
+        self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)
+        self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
+        self.forward_vec = to_torch([1., 0., 0.], device=self.device).repeat((self.num_envs, 1))
+        self.torques = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.p_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.d_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_dof_vel = torch.zeros_like(self.dof_vel)
+        self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
+        self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
+        self.commands_scale = torch.tensor([self.obs_scales.lin_vel, self.obs_scales.lin_vel, self.obs_scales.ang_vel], device=self.device, requires_grad=False,) 
+        self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
+        self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
+        self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
+        self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
+        self.height_points = self._init_height_points()
+        self.measured_heights = self._get_heights()
+
+        # joint positions offsets and PD gains
+        self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        for i in range(self.num_dofs):
+            name = self.dof_names[i]
+            angle = self.cfg.init_state.default_joint_angles[name]
+            self.default_dof_pos[i] = angle
+            found = False
+            for dof_name in self.cfg.control.stiffness.keys():
+                if dof_name in name:
+                    self.p_gains[i] = self.cfg.control.stiffness[dof_name]
+                    self.d_gains[i] = self.cfg.control.damping[dof_name]
+                    found = True
+            if not found:
+                self.p_gains[i] = 0.
+                self.d_gains[i] = 0.
+                if self.cfg.control.control_type in ["P", "V"]:
+                    print(f"PD gain of joint {name} were not defined, setting them to zero")
+                    
+        self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, self.cfg.asset.name)
         _rb_states = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.gym.refresh_jacobian_tensors(self.sim)
@@ -217,6 +258,8 @@ class Bolt10(LeggedRobot):
                 self.rb_inertia[env, N, 2, :] = gymtorch.torch.tensor([-rb_props.inertia.z.x, -rb_props.inertia.z.y, rb_props.inertia.z.z], device=self.device)
                 # see how inertia tensor is made : https://ocw.mit.edu/courses/16-07-dynamics-fall-2009/dd277ec654440f4c2b5b07d6c286c3fd_MIT16_07F09_Lec26.pdf
                 self.rb_mass[env, N] = rb_props.mass
+        self.robot_mass = torch.sum(self.rb_mass, dim=1).unsqueeze(1)
+
         # self.rb_{property} can be used for dynamics calculation
 
     def create_sim(self):
@@ -256,19 +299,21 @@ class Bolt10(LeggedRobot):
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
-            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
-            self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
+            self.obs_buf = torch.cat((self.obs_buf, torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements), dim=-1)
         # add noise if needed
 
         if self.num_privileged_obs is not None:
             self.privileged_obs_buf = torch.cat((
-                self.ground_dynamic_friction * torch.ones((self.num_envs, 1)),
-                self.ground_static_friction * torch.ones((self.num_envs, 1)),
-                self.ext_forces[:, 0, :],
-                self.ext_torques[:, 0, :]
-            ), dim=1)
-            pass # TODO
-
+                self.obs_buf,
+                self.base_lin_vel * self.obs_scales.lin_vel,
+                # self.contact_forces.squeeze(), # When trimesh, this is unreliable
+                self.ext_forces[:, 0, :]* self.obs_scales.ext_forces / self.robot_mass,
+                self.ext_torques[:, 0, :]* self.obs_scales.ext_torques/ self.robot_mass,
+                self.friction_coeffs* self.obs_scales.friction_coeffs,
+                self.dof_props[:, 0].repeat(self.num_envs, 1)*self.obs_scales.dof_friction,
+                self.dof_props[:, 1].repeat(self.num_envs, 1)*self.obs_scales.dof_damping,
+                torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+                ), dim=-1)
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
 
@@ -288,21 +333,11 @@ class Bolt10(LeggedRobot):
                props["damping"][dof] = np.random.uniform(*self.cfg.domain_rand.dof_damping)
             for envs in self.envs:
                 self.gym.set_actor_dof_properties(envs, 0, props)
+            if self.num_privileged_obs is not None:
+                self.dof_props[:, 0] =  torch.tensor(props["friction"], device=self.device)
+                self.dof_props[:, 1] = torch.tensor(props["damping"], device=self.device)
         if self.cfg.domain_rand.ext_force_robots and (self.common_step_counter % self.cfg.domain_rand.ext_force_randomize_interval == 0):
             self.cfg.domain_rand.ext_force_duration = np.ceil(np.random.uniform(*self.cfg.domain_rand.ext_force_duration_s) / self.dt) 
-        '''
-        # This takes too much time. Must find another way to randomize ground friction instead of randomizing at real time
-        # Maybe I should set grids
-        if self.cfg.domain_rand.randomize_ground_friction and (self.common_step_counter % self.cfg.domain_rand.ground_friction_interval == 0):
-            mesh_type = self.cfg.terrain.mesh_type
-            if mesh_type in ['heightfield', 'trimesh']:
-                self.terrain = custom_Terrain(self.cfg.terrain, self.num_envs)
-            if mesh_type=='plane':
-                self._create_ground_plane()
-            elif mesh_type=='heightfield':
-                self._create_heightfield()
-            elif mesh_type=='trimesh':
-                self._create_trimesh()        '''
 
 
     def step(self, actions):
@@ -321,8 +356,8 @@ class Bolt10(LeggedRobot):
         for _ in range(self.cfg.control.decimation): # compute torque 4 times
             
             if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration):  
-                self.ext_forces[:, 0, 0:3] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
-                self.ext_torques[:, 0, 0:3] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
+                self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
+                self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
             else:
                 self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
                 self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            
@@ -343,22 +378,42 @@ class Bolt10(LeggedRobot):
         if self.privileged_obs_buf is not None:
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
+    
+    def update_command_curriculum(self, env_ids):
+        """ Implements a curriculum of increasing commands
+
+        Args:
+            env_ids (List[int]): ids of environments being reset
+        """
+        # If the tracking reward is above 80% of the maximum, increase the range of commands
+        if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
+            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
+            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
+        # If the agent does not terminate
 
     def custom_post_physics_step(self):
         self.gym.refresh_jacobian_tensors(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)        
         self.control_tick += 1
+        self.measured_heights = self._get_heights()
             
     def _custom_reset(self, env_ids):
         self.control_tick[env_ids, 0] = 0   
         
     def _custom_create_envs(self):
         collision_mask = [3,8] # List of shapes for which collision must be detected
-        for env in self.envs:
+        if self.cfg.domain_rand.randomize_friction:
+            # prepare friction randomization
+            friction_range = self.cfg.domain_rand.friction_range
+            self.friction_coeffs = torch_rand_float(friction_range[0], friction_range[1], (self.num_envs,1), device=self.device)
+        else:
+            self.friction_coeffs = torch.ones((self.num_envs, 1), device=self.device)
+        for i, env in enumerate(self.envs):
             rigid_shape_props = self.gym.get_actor_rigid_shape_properties(env, 0)
             for j in range(len(rigid_shape_props)):
                 if j not in collision_mask:
                     rigid_shape_props[j].filter=1
+                rigid_shape_props[j].friction=self.friction_coeffs[i, 0]
             self.gym.set_actor_rigid_shape_properties(env, 0, rigid_shape_props)
         # for name, num in self.body_names_dict.items():
         #     shape_id = self.body_to_shapes[num]
@@ -366,65 +421,55 @@ class Bolt10(LeggedRobot):
         #     for i in range(shape_id.start, shape_id.start + shape_id.count):
         #         print("shape ", i, " filter : ", self.gym.get_actor_rigid_shape_properties(self.envs[0], 0)[i].filter)
         #         print("shape ", i, " contact offset : ", self.gym.get_actor_rigid_shape_properties(self.envs[0], 0)[i].contact_offset)
-                # I guess the best I can try is set the shin's bitmasks as 0     
+                # I guess the best I can try is set the shin's bitmasks as 0           
+
 
     def _custom_parse_cfg(self, cfg):
         self.cfg.domain_rand.ext_force_interval = np.ceil(self.cfg.domain_rand.ext_force_interval_s / self.dt)
         self.cfg.domain_rand.ext_force_randomize_interval = np.ceil(self.cfg.domain_rand.ext_force_randomize_interval_s / self.dt)
         self.cfg.domain_rand.dof_friction_interval = np.ceil(self.cfg.domain_rand.dof_friction_interval_s / self.dt)      
-        self.cfg.domain_rand.ground_friction_interval = np.ceil(self.cfg.domain_rand.ground_friction_interval_s / self.dt)
         
-        
-    ##############Randomize ground friction##############
-    
-    def _create_ground_plane(self):
-        plane_params = gymapi.PlaneParams()
-        plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-        plane_params.static_friction = self.cfg.terrain.static_friction * np.random.uniform(0.9, 1.1)
-        plane_params.dynamic_friction = self.cfg.terrain.dynamic_friction * np.random.uniform(0.9, 1.1)
-        plane_params.restitution = self.cfg.terrain.restitution
-        self.gym.add_ground(self.sim, plane_params)
-        if self.num_privileged_obs is not None:
-            self.ground_static_friction = plane_params.static_friction
-            self.ground_dynamic_friction = plane_params.dynamic_friction
-    
-    def _create_heightfield(self):
-        hf_params = gymapi.HeightFieldParams()
-        hf_params.column_scale = self.terrain.cfg.horizontal_scale
-        hf_params.row_scale = self.terrain.cfg.horizontal_scale
-        hf_params.vertical_scale = self.terrain.cfg.vertical_scale
-        hf_params.nbRows = self.terrain.tot_cols
-        hf_params.nbColumns = self.terrain.tot_rows 
-        hf_params.transform.p.x = -self.terrain.cfg.border_size 
-        hf_params.transform.p.y = -self.terrain.cfg.border_size
-        hf_params.transform.p.z = 0.0
-        hf_params.static_friction = self.cfg.terrain.static_friction * np.random.uniform(0.9, 1.1)
-        hf_params.dynamic_friction = self.cfg.terrain.dynamic_friction * np.random.uniform(0.9, 1.1)
-        hf_params.restitution = self.cfg.terrain.restitution
+    def _process_rigid_shape_props(self, props, env_id):
+        """ Callback allowing to store/change/randomize the rigid shape properties of each environment.
+            Called During environment creation.
+            Base behavior: randomizes the friction of each environment
 
-        self.gym.add_heightfield(self.sim, self.terrain.heightsamples, hf_params)
-        self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
-        if self.num_privileged_obs is not None:
-            self.ground_static_friction = hf_params.static_friction
-            self.ground_dynamic_friction = hf_params.dynamic_friction
-                
-    def _create_trimesh(self):
-        tm_params = gymapi.TriangleMeshParams()
-        tm_params.nb_vertices = self.terrain.vertices.shape[0]
-        tm_params.nb_triangles = self.terrain.triangles.shape[0]
+        Args:
+            props (List[gymapi.RigidShapeProperties]): Properties of each shape of the asset
+            env_id (int): Environment id
 
-        tm_params.transform.p.x = -self.terrain.cfg.border_size 
-        tm_params.transform.p.y = -self.terrain.cfg.border_size
-        tm_params.transform.p.z = 0.0
-        tm_params.static_friction = self.cfg.terrain.static_friction * np.random.uniform(0.9, 1.1)
-        tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction * np.random.uniform(0.9, 1.1)
-        tm_params.restitution = self.cfg.terrain.restitution
-        self.gym.add_triangle_mesh(self.sim, self.terrain.vertices.flatten(order='C'), self.terrain.triangles.flatten(order='C'), tm_params)   
-        self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
-        if self.num_privileged_obs is not None:
-            self.ground_static_friction = tm_params.static_friction
-            self.ground_dynamic_friction = tm_params.dynamic_friction
-                    
+        Returns:
+            [List[gymapi.RigidShapeProperties]]: Modified rigid shape properties
+        """
+        if self.cfg.domain_rand.randomize_friction:
+            if env_id==0:
+                # prepare friction randomization
+                friction_range = self.cfg.domain_rand.friction_range
+                num_buckets = 64
+                bucket_ids = torch.randint(0, num_buckets, (self.num_envs, 1))
+                friction_buckets = torch_rand_float(friction_range[0], friction_range[1], (num_buckets,1), device='cpu')
+                self.friction_coeffs = friction_buckets[bucket_ids]
+
+            for s in range(len(props)):
+                props[s].friction = self.friction_coeffs[env_id]
+        return props
+    
+    def _resample_commands(self, env_ids):
+        """ Randommly select commands of some environments
+
+        Args:
+            env_ids (List[int]): Environments ids for which new commands are needed
+        """
+        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        if self.cfg.commands.heading_command:
+            self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        else:
+            self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+
+        # set small commands to zero
+        self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.1).unsqueeze(1)    
+    
     def set_camera(self, position, lookat):
         """ Set camera position and direction
         """
