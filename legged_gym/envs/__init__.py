@@ -49,6 +49,7 @@ from .bolt10.bolt10_config import Bolt10Cfg, Bolt10CfgPPO
 import os
 
 from legged_gym.utils.task_registry import task_registry # task_registry is a global registry, initialized in legged_gym.utils.task_registry.py
+from legged_gym.utils.custom_task_registry import custom_task_registry
 
 task_registry.register( "anymal_c_rough", Anymal, AnymalCRoughCfg(), AnymalCRoughCfgPPO() ) # AnymalCRoughCfg() is an instance of LeggedRobotCfg
 task_registry.register( "anymal_c_flat", Anymal, AnymalCFlatCfg(), AnymalCFlatCfgPPO() ) # Anymal is a VecEnv object (env)
@@ -59,4 +60,4 @@ task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() 
 task_registry.register("jet_rough", Jet, JetRoughCfg(), JetRoughCfgPPO())
 task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
 
-task_registry.register("bolt10", Bolt10, Bolt10Cfg(), Bolt10CfgPPO())
+custom_task_registry.register("bolt10", Bolt10, Bolt10Cfg(), Bolt10CfgPPO())
