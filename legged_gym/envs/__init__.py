@@ -43,6 +43,8 @@ from .jet.jet_rough_config import JetRoughCfg, JetRoughCfgPPO
 from .jet.jet_flat_config import JetFlatCfg, JetFlatCfgPPO
 from .bolt10.bolt10 import Bolt10
 from .bolt10.bolt10_config import Bolt10Cfg, Bolt10CfgPPO
+from .tocabi.tocabi import Tocabi
+from .tocabi.tocabi_config import TocabiCfg, TocabiCfgPPO
 
 
 
@@ -61,3 +63,5 @@ task_registry.register("jet_rough", Jet, JetRoughCfg(), JetRoughCfgPPO())
 task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
 
 custom_task_registry.register("bolt10", Bolt10, Bolt10Cfg(), Bolt10CfgPPO())
+
+custom_task_registry.register("tocabi", Tocabi, TocabiCfg(), TocabiCfgPPO())

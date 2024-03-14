@@ -41,7 +41,9 @@ import torch
 from typing import Tuple, Dict
 from legged_gym.envs import LeggedRobot
 
-class Bolt10(LeggedRobot):
+from collections import deque
+
+class Tocabi(LeggedRobot):
 
     def _custom_init(self, cfg):
         self.control_tick = torch.zeros(
@@ -52,6 +54,11 @@ class Bolt10(LeggedRobot):
         if self.num_privileged_obs is not None:
             self.dof_props = torch.zeros((self.num_dofs, 2), device=self.device, dtype=torch.float) # includes dof friction (0) and damping (1) for each environment
             #TODO
+    
+    def _reward_soft_tracking_lin_vel(self):
+        # Tracking of linear velocity commands (xy axes)
+        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel_filtered[:, :2] ), dim=1)
+        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
     
     def _reward_no_fly(self):
         contacts = self.contact_forces[:, self.feet_indices, 2] > 0.001
@@ -103,6 +110,11 @@ class Bolt10(LeggedRobot):
         error = (base_height-self.cfg.rewards.base_height_target)
         error = error.flatten()
         return torch.exp(-torch.square(error)/self.cfg.rewards.tracking_sigma)
+    
+    def _reward_tracking_lin_vel(self):
+        # Tracking of linear velocity commands (xy axes)
+        lin_vel_error = torch.sum(torch.square(torch.div(self.commands[:, :2] - self.base_lin_vel[:, :2], self.commands[:, :2])), dim=1)
+        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
 
     def _reward_joint_regularization(self):
         # Reward joint poses and symmetry
@@ -113,24 +125,34 @@ class Bolt10(LeggedRobot):
         # error += self.sqrdexp(
         #      (self.dof_pos[:, 5]) / self.cfg.normalization.obs_scales.dof_pos)
         # Ab/ad joint symmetry
+        interval = int(self.num_actions/2)
         error += self.sqrdexp(
-            ( (self.dof_pos[:, 0] ) - (self.dof_pos[:, 5]) )
+            ( (self.dof_pos[:, 0] ) - (self.dof_pos[:, interval]) )
             / self.cfg.normalization.obs_scales.dof_pos)
         # Pitch joint symmetry
         error += self.sqrdexp(
-            ( ((self.dof_pos[:, 1]) - self.default_dof_pos[:, 1]) - ((self.dof_pos[:, 6]) - self.default_dof_pos[:, 6]))
+            ( ((self.dof_pos[:, 1]) - self.default_dof_pos[:, 1]) - ((self.dof_pos[:, 1+interval]) - self.default_dof_pos[:, 1+interval]))
+            / self.cfg.normalization.obs_scales.dof_pos)
+        error += 0.5 * self.sqrdexp(
+            ( ((self.dof_pos[:, 3]) - self.default_dof_pos[:, 3]) + ((self.dof_pos[:, 3+interval]) - self.default_dof_pos[:, 3+interval]))
             / self.cfg.normalization.obs_scales.dof_pos)
         # print("self.dof_pos[0, 6]: ", self.dof_pos[0, 1], "// self.dof_pos[0, 6]: ", self.dof_pos[0, 6])
         # error += 0.8 * self.sqrdexp(
         #     ( self.dof_pos[:, 2] + self.dof_pos[:, 7])
         #     / self.cfg.normalization.obs_scales.dof_pos)        
         error +=  self.sqrdexp(
-            ( self.dof_vel[:, 4] + self.dof_vel[:, 9])
+            ( self.dof_vel[:, 4] + self.dof_vel[:, 4+interval])
             / self.cfg.normalization.obs_scales.dof_vel) 
         # error += self.sqrdexp(
         #     ( self.dof_vel[:, 9])
         #     / self.cfg.normalization.obs_scales.dof_vel)         
-        return error/3.
+        return error/3.5
+    
+    def _reward_double_support_time(self):
+        contacts = self.contact_forces[:, self.feet_indices, 2] > 0.001
+        double_contact = torch.sum(1.*contacts, dim=1)==2
+        # double_contact *= torch.norm(self.commands[:, :3], dim=1) > 0.1 #no reward for zero command
+        return 1.*double_contact
     
     # Potential-based rewards
     
@@ -169,7 +191,13 @@ class Bolt10(LeggedRobot):
             * (self._reward_feet_air_time() - self.rwd_feetAirTimePrev)
         return delta_phi / self.dt
 
-
+    def _reward_double_support_time_pb(self):
+        delta_phi = ~self.reset_buf \
+            * (self._reward_double_support_time() - self.rwd_doubleSupport)
+        return delta_phi / self.dt
+    
+    def _reward_feet_contact_forces(self):
+        return 1.- torch.exp(-0.07 * torch.norm((self.contact_forces[:, self.feet_indices, 2] -  1.4 * 9.81 * self.robot_mass.mean()).clip(min=0.), dim=1)) 
 
     def _init_buffers(self):
         """ Initialize torch tensors which will contain simulation states and processed quantities
@@ -213,7 +241,12 @@ class Bolt10(LeggedRobot):
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         self.height_points = self._init_height_points()
         self.measured_heights = self._get_heights()
-
+        
+        # Custom states
+        self.base_lin_vel_filtered = torch.zeros_like(self.base_lin_vel)
+        self.alpha = 0.005
+            
+        
         # joint positions offsets and PD gains
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         for i in range(self.num_dofs):
@@ -296,6 +329,7 @@ class Bolt10(LeggedRobot):
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
                                     self.dof_vel * self.obs_scales.dof_vel,
                                     self.actions,
+                                    self.contacts
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
@@ -351,6 +385,7 @@ class Bolt10(LeggedRobot):
         self.rwd_standStillPrev = self._reward_stand_still()
         self.rwd_noFlyPrev = self._reward_no_fly()
         self.rwd_feetAirTimePrev = self._reward_feet_air_time()
+        self.rwd_doubleSupport = self._reward_double_support_time()
         if self.cfg.domain_rand.randomize_dof_friction and  (self.common_step_counter % self.cfg.domain_rand.dof_friction_interval == 0):
             props = self.gym.get_actor_dof_properties(self.envs[0], 0)
             for dof in range(self.num_dofs):
@@ -423,8 +458,8 @@ class Bolt10(LeggedRobot):
         """
         # If the tracking reward is above 80% of the maximum, increase the range of commands
         if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
-            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
-            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
+            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.2, -self.cfg.commands.max_curriculum, 0.)
+            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.2, 0., self.cfg.commands.max_curriculum)
         # If the agent does not terminate
 
     def custom_post_physics_step(self):
@@ -432,25 +467,29 @@ class Bolt10(LeggedRobot):
         self.gym.refresh_rigid_body_state_tensor(self.sim)        
         self.control_tick += 1
         self.measured_heights = self._get_heights()
+        self.base_lin_vel_filtered = self.alpha * self.base_lin_vel + (1 - self.alpha) * self.base_lin_vel_filtered
+
             
     def _custom_reset(self, env_ids):
         self.control_tick[env_ids, 0] = 0   
+        self.base_lin_vel_filtered[env_ids, :] = 0
         
     def _custom_create_envs(self):
-        collision_mask = [3,8] # List of shapes for which collision must be detected
+        collision_mask = [] # List of shapes for which collision must be detected
         if self.cfg.domain_rand.randomize_friction:
             # prepare friction randomization
             friction_range = self.cfg.domain_rand.friction_range
             self.friction_coeffs = torch_rand_float(friction_range[0], friction_range[1], (self.num_envs,1), device=self.device)
         else:
             self.friction_coeffs = torch.ones((self.num_envs, 1), device=self.device)
-        for i, env in enumerate(self.envs):
-            rigid_shape_props = self.gym.get_actor_rigid_shape_properties(env, 0)
-            for j in range(len(rigid_shape_props)):
-                if j not in collision_mask:
-                    rigid_shape_props[j].filter=1
-                rigid_shape_props[j].friction=self.friction_coeffs[i, 0]
-            self.gym.set_actor_rigid_shape_properties(env, 0, rigid_shape_props)
+        # for i, env in enumerate(self.envs):
+        #     rigid_shape_props = self.gym.get_actor_rigid_shape_properties(env, 0)
+        #     for j in range(len(rigid_shape_props)):
+        #         if j not in collision_mask:
+        #             rigid_shape_props[j].filter=1
+        #         rigid_shape_props[j].friction=self.friction_coeffs[i, 0]
+        #     self.gym.set_actor_rigid_shape_properties(env, 0, rigid_shape_props)
+            
         # for name, num in self.body_names_dict.items():
         #     shape_id = self.body_to_shapes[num]
         #     print("body : ", name, ", shape index start : ", shape_id.start, ", shape index count : ", shape_id.count)

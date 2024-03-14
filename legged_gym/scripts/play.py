@@ -55,6 +55,25 @@ def deque_to_tensor(buffer : deque) -> torch.Tensor:
         raise ValueError("Conversion from deque to tensor is wrong.")
     return ret
 
+def write_tensor_to_txt(tensor, file_path, precision):
+    """
+    Write tensor data to a text file.
+    
+    Args:
+    - tensor (torch.Tensor): Input tensor.
+    - file_path (str): File path to save the tensor data.
+    """
+    # Convert tensor to numpy array
+    tensor_data = tensor.detach().to('cpu').numpy()
+    np.round(tensor_data)
+    # Write tensor data to text file
+    with open(file_path, 'a') as file:
+        for row in tensor_data:
+            # Convert each row of the tensor to a string and write to file
+            row_str = ' '.join(map(lambda x: f"{x:.{precision}f}", row))
+            file.write(row_str + '\n')
+
+
 def custom_play(args):
     if args.task in task_registry.task_classes:
         registry = task_registry
@@ -67,10 +86,13 @@ def custom_play(args):
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.curriculum = False
+    env_cfg.terrain.mesh_type = 'plane'
     env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = False
     env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.ext_force_robots = False
+    env_cfg.domain_rand.ext_force_vector_6d_range = [(-0,0), (20,20), (0, 0), (-0,0), (-0,0), (-0,0)]
+    env_cfg.domain_rand.ext_force_duration_s = [0.1, 1.]
     env_cfg.env.episode_length_s = 20
     if args.speed is not None:
         env_cfg.commands.num_commands = 4
@@ -88,8 +110,9 @@ def custom_play(args):
     # prepare environment
     env, _ = registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
-    for i in range(history_len):
+    for _ in range(history_len):
         obs_history.append(torch.zeros(size=(env_cfg.env.num_envs, env_cfg.env.num_observations), device=env.device))
+    # obs_history[history_len-1][:, 2] = -1. #TODO change if observation changes
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg) # env is reset here
@@ -115,11 +138,21 @@ def custom_play(args):
     
     SAVE_DIR = 'play_plot.png'
     
+    open('data.txt', 'w')
+    
     for i in range(3*int(env.max_episode_length)):
-        obs_history.append(obs)
+        # obs_history.append(obs)
+        # obs_history.append(torch.ones_like(obs) * (-1.))
         obs_history_tensor = deque_to_tensor(obs_history)
+        with open('data.txt', 'a') as file:
+            file.write('Obs : ' + '\n')
+        write_tensor_to_txt(deque_to_tensor(obs_history), 'data.txt', 6)
         actions = policy(obs_history_tensor.detach())
+        with open('data.txt', 'a') as file:
+            file.write('Torque : ' + '\n')
+        write_tensor_to_txt(actions, 'data.txt', 6)
         obs, _, rews, dones, infos = env.step(actions.detach())
+        obs_history.append(obs)
         
         if RECORD_FRAMES:
             if i % 2:

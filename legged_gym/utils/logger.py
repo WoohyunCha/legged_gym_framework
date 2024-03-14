@@ -114,8 +114,8 @@ class Logger:
         # a.legend()
         # plot torques
         a = axs[2, 1]
-        if log["hip_pitch_torque"]!=[]: a.plot(time, log["hip_pitch_torque"], label='measured')
-        a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Hip Pitch Torque')
+        if log["ankle_pitch_torque"]!=[]: a.plot(time, log["ankle_pitch_torque"], label='measured')
+        a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='ankle Pitch Torque')
         a.legend()     
         a = axs[2, 2]
         if log["knee_pitch_torque"]!=[]: a.plot(time, log["knee_pitch_torque"], label='measured')
@@ -191,12 +191,12 @@ class Logger:
         # a.legend()
         # plot torques
         a = axs[2, 1]
-        if log["hip_pitch_torque"]!=[]: a.plot(time, log["hip_pitch_torque"], label='measured')
-        a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Torque')
+        if log["ankle_pitch_torque"]!=[]: a.plot(time, log["ankle_pitch_torque"], label='measured')
+        a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='ankle_pitch_torque')
         a.legend()     
         a = axs[2, 2]
         if log["knee_pitch_torque"]!=[]: a.plot(time, log["knee_pitch_torque"], label='measured')
-        a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Torque')
+        a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='knee_pitch_torque')
         a.legend()        
         
         plt.show

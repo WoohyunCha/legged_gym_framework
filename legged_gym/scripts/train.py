@@ -85,7 +85,7 @@ def train(args):
     env_cfg_play.env.episode_length_s = 10
     env_cfg_play.commands.num_commands = 4
     env_cfg_play.commands.heading_command = True        
-    env_cfg_play.commands.ranges.lin_vel_x = [.8, .8]
+    env_cfg_play.commands.ranges.lin_vel_x = [.6, .6]
     env_cfg_play.commands.ranges.lin_vel_y = [0., 0.]
     env_cfg_play.commands.ranges.heading = [0.,0.]
     env_cfg_play.domain_rand.randomize_dof_friction = False
@@ -122,6 +122,7 @@ def train(args):
     if EXPORT_POLICY:
         path = os.path.join(log_root, 'exported', 'policies')
         export_policy_as_jit(ppo_runner.alg.actor_critic, path)
+        export_policy_as_jit(ppo_runner.alg.actor_critic, SAVE_DIR)
         print('Exported policy as jit script to: ', path)
 
         
