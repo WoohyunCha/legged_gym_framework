@@ -174,9 +174,10 @@ class TocabiCfg( LeggedRobotCfg ):
         max_push_vel_xy = .5
         ext_force_robots = False
         ext_force_randomize_interval_s = 5
-        ext_force_vector_6d_range = [(-30,30), (-30,30), (-30, 30), (-3,3), (-3,3), (-3,3)]
-        ext_force_interval_s = 5
-        ext_force_duration_s = [0.1, 1.]
+        ext_force_direction_range = (0, 2*3.141592)
+        ext_force_scale_range = (-6, 6)
+        ext_force_interval_s = 2
+        ext_force_duration_s = [0.3, 0.7]
         randomize_dof_friction = False
         dof_friction_interval_s = 5
         dof_friction = [0, 0.03] # https://forums.developer.nvidia.com/t/possible-bug-in-joint-friction-value-definition/208631

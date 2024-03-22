@@ -43,7 +43,7 @@ from legged_gym.envs import LeggedRobot
 
 from collections import deque
 
-from math import pi
+import math
 
 class Tocabi(LeggedRobot):
 
@@ -421,9 +421,10 @@ class Tocabi(LeggedRobot):
             
             if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration) and self.curriculum_index > 0:  
                 if self.common_step_counter % self.cfg.domain_rand.ext_force_interval == 0:
-                    self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
-                    self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
-                print("ROBOT IS PUSHED : ", self.ext_forces[:, 0, :].mean(dim=0), ", common tick : ", self.common_step_counter)                
+                    scale = np.random.uniform(*self.cfg.domain_rand.ext_force_scale_range)
+                    angle = np.random.uniform(*self.cfg.domain_rand.ext_force_direction_range)
+                    self.ext_forces[:, 0, :] = torch.tensor([scale*math.cos(angle), scale*math.sin(angle), 0], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
+                    self.ext_torques[:, 0, :] = torch.tensor([0, 0, 0], device=self.device, requires_grad=False)               
             else:
                 self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
                 self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            

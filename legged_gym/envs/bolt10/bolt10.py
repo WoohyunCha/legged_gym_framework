@@ -388,10 +388,9 @@ class Bolt10(LeggedRobot):
             if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration) and self.curriculum_index > 0:  
                 if self.common_step_counter % self.cfg.domain_rand.ext_force_interval == 0:
                     scale = np.random.uniform(*self.cfg.domain_rand.ext_force_scale_range)
-                    angle = np.random.uniform(0, 2*math.pi)
+                    angle = np.random.uniform(*self.cfg.domain_rand.ext_force_direction_range)
                     self.ext_forces[:, 0, :] = torch.tensor([scale*math.cos(angle), scale*math.sin(angle), 0], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
                     self.ext_torques[:, 0, :] = torch.tensor([0, 0, 0], device=self.device, requires_grad=False)                    
-                print("ROBOT IS PUSHED : ", self.ext_forces[:, 0, :].mean(dim=0), ", common tick : ", self.common_step_counter)
             else:
                 self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
                 self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            
@@ -441,10 +440,9 @@ class Bolt10(LeggedRobot):
             if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration) and self.curriculum_index > 0:  
                 if self.common_step_counter % self.cfg.domain_rand.ext_force_interval == 0:
                     scale = np.random.uniform(*self.cfg.domain_rand.ext_force_scale_range)
-                    angle = np.random.uniform(0, 2*math.pi)
+                    angle = np.random.uniform(*self.cfg.domain_rand.ext_force_direction_range)
                     self.ext_forces[:, 0, :] = torch.tensor([scale*math.cos(angle), scale*math.sin(angle), 0], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
                     self.ext_torques[:, 0, :] = torch.tensor([0, 0, 0], device=self.device, requires_grad=False)                    
-                print("ROBOT IS PUSHED : ", self.ext_forces[:, 0, :].mean(dim=0), ", common tick : ", self.common_step_counter)
             else:
                 self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
                 self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            

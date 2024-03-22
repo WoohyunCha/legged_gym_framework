@@ -202,8 +202,8 @@ class Bolt6Cfg( LeggedRobotCfg ):
         max_push_vel_xy = .5    
         ext_force_robots = True
         ext_force_randomize_interval_s = 5
+        ext_force_direction_range = (0, 2*3.141592)
         ext_force_scale_range = (-6, 6)
-        ext_force_vector_6d_range = [(-6,6), (-6,6), (-0, 0), (-0,0), (-0,0), (-0,0)]
         ext_force_interval_s = 2
         ext_force_duration_s = [0.3, 0.7]
         randomize_dof_friction = False
