@@ -80,8 +80,8 @@ def write_tensor_to_txt(tensor, file_path, precision):
 
 def custom_play_disturbance(args):
 
-    
-    list_of_robots = ['bolt10']
+    set_seed(432432)
+    list_of_robots = ['bolt6','bolt10']
     for task in list_of_robots:
         if task in task_registry.task_classes:
             registry = task_registry
@@ -90,7 +90,7 @@ def custom_play_disturbance(args):
         print("Experiment for ", task, " has started")
         env_cfg, train_cfg = registry.get_cfgs(name=task)
         # override some parameters for testing
-        env_cfg.env.num_envs = 1
+        env_cfg.env.num_envs = 100
         env_cfg.env.episode_length_s = 5
         env_cfg.terrain.num_rows = 5
         env_cfg.terrain.num_cols = 5
@@ -101,6 +101,7 @@ def custom_play_disturbance(args):
         env_cfg.domain_rand.push_robots = False
         env_cfg.domain_rand.ext_force_robots = True
         env_cfg.domain_rand.ext_force_duration_s = [.5, .5]
+        env_cfg.domain_rand.ext_force_interval_s = 3.
         env_cfg.commands.num_commands = 4
         env_cfg.commands.heading_command = True        
         env_cfg.commands.ranges.lin_vel_x = [0.5, 0.5]
@@ -152,12 +153,12 @@ def custom_play_disturbance(args):
         env.curriculum_index = 1
 
         success_rate = []
-        disturbances = np.linspace(5, 5, 1)
+        disturbances = np.linspace(1, 6, 20)
         for disturbance in disturbances:
             total_count = 0
             fail_count = 0
-            env_cfg.domain_rand.ext_force_vector_6d_range = [(-0,0), (disturbance,disturbance), (0, 0), (-0,0), (-0,0), (-0,0)]
-
+            env_cfg.domain_rand.ext_force_scale_range = (disturbance, disturbance)
+            env_cfg.domain_rand.ext_force_direction_range = (3.141592/2, 3.141592/2)
             for i in range(int(env.max_episode_length+1)):
                 # obs_history.append(obs)
                 # obs_history.append(torch.ones_like(obs) * (-1.))
@@ -218,11 +219,14 @@ def custom_play_disturbance(args):
 
         # plot using success rate and disturbance
         plt.plot(disturbances, success_rate, label = task)
+        env.destroy_sim()
+        torch.cuda.empty_cache()
+
     plt.legend(list_of_robots)
     plt.xlabel('Lateral External Force, [N]')
     plt.ylabel('Success rate')
     plt.title('Success rate vs Lateral External Force')
-    plt.savefig(train_cfg.runner.experiment_name + '_success_rate.png')
+    plt.savefig('success_rate.png')
 
 
 if __name__ == '__main__':
