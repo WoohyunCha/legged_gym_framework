@@ -63,7 +63,7 @@ class Logger:
         nb_cols = 3 # 3
         fig, axs = plt.subplots(nb_rows, nb_cols)
         for key, value in self.state_log.items():
-            time = np.linspace(0, len(value)*self.dt, len(value))
+            time = np.linspace(4., 4.+len(value)*self.dt, len(value))
             break
         log= self.state_log
         # plot joint velocity 
@@ -85,6 +85,7 @@ class Logger:
         a = axs[0, 0]
         if log["base_vel_x"]: a.plot(time, log["base_vel_x"], label='measured')
         if log["command_x"]: a.plot(time, log["command_x"], label='commanded')
+        if log["sinusoid_command_x"]: a.plot(time, log["sinusoid_command_x"], label='sinusoid')
         a.set(xlabel='time [s]', ylabel='base lin vel [m/s]', title='Base velocity x')
         a.legend()
         # plot base vel y
@@ -140,7 +141,7 @@ class Logger:
         fig, axs = plt.subplots(nb_rows, nb_cols)
         fig.set_size_inches(10, 10)
         for key, value in self.state_log.items():
-            time = np.linspace(0, len(value)*self.dt, len(value))
+            time = np.linspace(4., 4.+len(value)*self.dt, len(value))
             break
         log= self.state_log
         # plot joint velocity 
@@ -199,7 +200,7 @@ class Logger:
         a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='knee_pitch_torque')
         a.legend()        
         
-        plt.show
+        # plt.show
         if save_fig:
             if save_dir is None:
                 raise ValueError("Directory must be specified to save plots")

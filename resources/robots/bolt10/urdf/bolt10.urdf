@@ -1,3 +1,4 @@
+
 <robot name="bolt10_urdf">
 <link name="base_link">
     <inertial>
@@ -215,7 +216,7 @@
     <!-- joints rotates around the y-axis -->
     <axis xyz="0 1 0"/>
     <!-- Limits -->
-    <limit effort="3.5" lower="-1.0" upper="1.50" velocity="20"/>
+    <limit effort="3.5" lower="-1.0" upper="1.50" velocity="5"/>
     <!-- pybullet simulation parameters -->
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
@@ -233,7 +234,8 @@
     <visual>
       <origin rpy="0 0 0." xyz="0 0 0"/>
       <geometry>
-        <mesh filename="../meshes/L_Foot_box.stl" />
+        <!-- <mesh filename="../meshes/L_Foot_box.stl" /> -->
+        <mesh filename="../meshes/L_Foot.stl" />
       </geometry>
       <material name="grey">
         <color rgba="0.8 0.8 0.8 1.0"/>
@@ -480,7 +482,7 @@
     <!-- joints rotates around the y-axis -->
     <axis xyz="0 1 0"/>
     <!-- Limits (usefull?) -->
-    <limit effort="3.5" lower="-1.0" upper="1.50" velocity="20"/>
+    <limit effort="3.5" lower="-1.0" upper="1.50" velocity="5"/>
     <!-- pybullet simulation parameters -->
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
@@ -499,7 +501,8 @@
       <origin rpy="0 0 0." xyz="0 0 0"/>
 
       <geometry>
-        <mesh filename="../meshes/R_Foot_box.stl"/>
+        <!-- <mesh filename="../meshes/R_Foot_box.stl"/> -->
+        <mesh filename="../meshes/R_Foot.stl"/>
       </geometry>
       <material name="grey">
         <color rgba="0.8 0.8 0.8 1.0"/>

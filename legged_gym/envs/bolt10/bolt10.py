@@ -49,6 +49,7 @@ class Bolt10(LeggedRobot):
             device=self.device, requires_grad=False)
         self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
         self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
+        self.curriculum_index = 0
         if self.num_privileged_obs is not None:
             self.dof_props = torch.zeros((self.num_dofs, 2), device=self.device, dtype=torch.float) # includes dof friction (0) and damping (1) for each environment
             #TODO
@@ -134,6 +135,9 @@ class Bolt10(LeggedRobot):
     
     # Potential-based rewards
     
+    def _reward_feet_contact_forces(self):
+        return 1.- torch.exp(-1. * torch.norm((self.contact_forces[:, self.feet_indices, 2] -  1.2 * 9.81 * self.robot_mass.mean()).clip(min=0.), dim=1)) 
+
     def _reward_ori_pb(self):
         delta_phi = ~self.reset_buf \
             * (self._reward_orientation() - self.rwd_oriPrev)
@@ -379,10 +383,11 @@ class Bolt10(LeggedRobot):
 
 
         for _ in range(self.cfg.control.decimation): # compute torque 4 times
-            
-            if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration):  
-                self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
-                self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
+            if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration) and self.curriculum_index > 0:  
+                if self.common_step_counter % self.cfg.domain_rand.ext_force_interval == 0:
+                    self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
+                    self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
+                print("ROBOT IS PUSHED : ", self.ext_forces[:, 0, :].mean(dim=0), ", common tick : ", self.common_step_counter)
             else:
                 self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
                 self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            
@@ -415,6 +420,48 @@ class Bolt10(LeggedRobot):
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
     
+
+    def step_count_failures(self, actions):
+        """ Apply actions, simulate, call self.post_physics_step()
+
+        Args:
+            actions (torch.Tensor): Tensor of shape (num_envs, num_actions_per_env)
+        """
+        clip_actions = self.cfg.normalization.clip_actions
+        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device) # at reset, action is zero.
+        # step physics and render each frame
+        self.pre_physics_step()
+        self.render()
+
+        for _ in range(self.cfg.control.decimation): # compute torque decimation times
+            if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration) and self.curriculum_index > 0:  
+                if self.common_step_counter % self.cfg.domain_rand.ext_force_interval == 0:
+                    self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
+                    self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
+                print("ROBOT IS PUSHED : ", self.ext_forces[:, 0, :].mean(dim=0), ", common tick : ", self.common_step_counter)
+            else:
+                self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
+                self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            
+            
+            self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(self.ext_forces), gymtorch.unwrap_tensor(self.ext_torques), gymapi.ENV_SPACE)
+                        
+            self.torques = self._compute_torques(self.actions).view(self.torques.shape) # zero action means its trying to go to default joint positions. What is the current joint position?
+            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques)) # Now its set as default joint position. So the torque should be 0? Because dof vel is 0
+            self.gym.simulate(self.sim)
+
+            if self.device == 'cpu':
+                self.gym.fetch_results(self.sim, True)
+            self.gym.refresh_dof_state_tensor(self.sim)
+            
+        self.post_physics_step()
+        # return clipped obs, clipped states (None), rewards, dones and infos
+        clip_obs = self.cfg.normalization.clip_observations
+        self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
+        if self.privileged_obs_buf is not None:
+            self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
+        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.failure_buf, self.extras
+
+
     def update_command_curriculum(self, env_ids):
         """ Implements a curriculum of increasing commands
 
@@ -423,8 +470,9 @@ class Bolt10(LeggedRobot):
         """
         # If the tracking reward is above 80% of the maximum, increase the range of commands
         if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
-            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
-            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
+            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.4, -self.cfg.commands.max_curriculum, 0.)
+            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.4, 0., self.cfg.commands.max_curriculum)
+            self.curriculum_index += 1
         # If the agent does not terminate
 
     def custom_post_physics_step(self):

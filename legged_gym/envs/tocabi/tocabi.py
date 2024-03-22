@@ -43,6 +43,8 @@ from legged_gym.envs import LeggedRobot
 
 from collections import deque
 
+from math import pi
+
 class Tocabi(LeggedRobot):
 
     def _custom_init(self, cfg):
@@ -51,14 +53,18 @@ class Tocabi(LeggedRobot):
             device=self.device, requires_grad=False)
         self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
         self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
+
         if self.num_privileged_obs is not None:
             self.dof_props = torch.zeros((self.num_dofs, 2), device=self.device, dtype=torch.float) # includes dof friction (0) and damping (1) for each environment
             #TODO
+        self.sinusoid_frequency = 2
+        self.curriculum_index = 0
+
     
-    def _reward_soft_tracking_lin_vel(self):
-        # Tracking of linear velocity commands (xy axes)
-        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel_filtered[:, :2] ), dim=1)
-        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+    def _reward_sinusoid_tracking_lin_vel(self):
+        lin_vel_error = torch.sum(torch.square(self.commands_sinusoid[:, :2] - self.base_lin_vel[:, :2] ), dim=1)
+        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)        
+    
     
     def _reward_no_fly(self):
         contacts = self.contact_forces[:, self.feet_indices, 2] > 0.001
@@ -110,11 +116,7 @@ class Tocabi(LeggedRobot):
         error = (base_height-self.cfg.rewards.base_height_target)
         error = error.flatten()
         return torch.exp(-torch.square(error)/self.cfg.rewards.tracking_sigma)
-    
-    def _reward_tracking_lin_vel(self):
-        # Tracking of linear velocity commands (xy axes)
-        lin_vel_error = torch.sum(torch.square(torch.div(self.commands[:, :2] - self.base_lin_vel[:, :2], self.commands[:, :2])), dim=1)
-        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+
 
     def _reward_joint_regularization(self):
         # Reward joint poses and symmetry
@@ -141,7 +143,7 @@ class Tocabi(LeggedRobot):
         #     ( self.dof_pos[:, 2] + self.dof_pos[:, 7])
         #     / self.cfg.normalization.obs_scales.dof_pos)        
         error +=  self.sqrdexp(
-            ( self.dof_vel[:, 4] + self.dof_vel[:, 4+interval])
+            ( self.dof_vel[:, 5] - self.dof_vel[:, 5+interval])
             / self.cfg.normalization.obs_scales.dof_vel) 
         # error += self.sqrdexp(
         #     ( self.dof_vel[:, 9])
@@ -243,7 +245,7 @@ class Tocabi(LeggedRobot):
         self.measured_heights = self._get_heights()
         
         # Custom states
-        self.base_lin_vel_filtered = torch.zeros_like(self.base_lin_vel)
+        self.commands_sinusoid = torch.zeros_like(self.commands)
         self.alpha = 0.005
             
         
@@ -329,7 +331,9 @@ class Tocabi(LeggedRobot):
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
                                     self.dof_vel * self.obs_scales.dof_vel,
                                     self.actions,
-                                    self.contacts
+                                    self.contacts,
+                                    torch.cos(2*pi*self.sinusoid_frequency*self.dt*self.control_tick).reshape(-1, 1),
+                                    torch.sin(2*pi*self.sinusoid_frequency*self.dt*self.control_tick).reshape(-1, 1)
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
@@ -415,9 +419,11 @@ class Tocabi(LeggedRobot):
 
         for _ in range(self.cfg.control.decimation): # compute torque 4 times
             
-            if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration):  
-                self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
-                self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
+            if self.cfg.domain_rand.ext_force_robots and  (self.common_step_counter % self.cfg.domain_rand.ext_force_interval < self.cfg.domain_rand.ext_force_duration) and self.curriculum_index > 0:  
+                if self.common_step_counter % self.cfg.domain_rand.ext_force_interval == 0:
+                    self.ext_forces[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(0,3)], device=self.device, requires_grad=False)    #index: root, body, force axis(6)
+                    self.ext_torques[:, 0, :] = torch.tensor([np.random.uniform(*self.cfg.domain_rand.ext_force_vector_6d_range[i]) for i in range(3,6)], device=self.device, requires_grad=False)                
+                print("ROBOT IS PUSHED : ", self.ext_forces[:, 0, :].mean(dim=0), ", common tick : ", self.common_step_counter)                
             else:
                 self.ext_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
                 self.ext_torques = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)            
@@ -460,6 +466,7 @@ class Tocabi(LeggedRobot):
         if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
             self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.2, -self.cfg.commands.max_curriculum, 0.)
             self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.2, 0., self.cfg.commands.max_curriculum)
+            self.curriculum_index += 1
         # If the agent does not terminate
 
     def custom_post_physics_step(self):
@@ -467,12 +474,12 @@ class Tocabi(LeggedRobot):
         self.gym.refresh_rigid_body_state_tensor(self.sim)        
         self.control_tick += 1
         self.measured_heights = self._get_heights()
-        self.base_lin_vel_filtered = self.alpha * self.base_lin_vel + (1 - self.alpha) * self.base_lin_vel_filtered
 
+    def _custom_post_physics_step_callback(self):
+        self.commands_sinusoid[:, 0] = self.commands[:, 0] + self.commands[:, 0] * torch.sin(self.control_tick * self.dt * 2 * 3.141592 * self.sinusoid_frequency).squeeze()
             
     def _custom_reset(self, env_ids):
         self.control_tick[env_ids, 0] = 0   
-        self.base_lin_vel_filtered[env_ids, :] = 0
         
     def _custom_create_envs(self):
         collision_mask = [] # List of shapes for which collision must be detected

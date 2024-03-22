@@ -33,7 +33,7 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class TocabiCfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_envs = 4096 # robot count 4096
-        num_observations = 44
+        num_observations = 46
         '''
         self.projected_gravity:  torch.Size([4096, 3])
         self.commands[:, :3]:  torch.Size([4096, 3])
@@ -41,13 +41,14 @@ class TocabiCfg( LeggedRobotCfg ):
         self.dof_vel:  torch.Size([4096, 12])
         self.actions:  torch.Size([4096, 12])
         self.contacts:   torch.Size([4096, 2])
+        phase: torch.Size([4096, 2])
 
         Observations should be stacked so that cartesian space vectors are in front, followed by joint space vectors.
         Values that do not need any mirroring (ex. terrain parameters) should be stacked in the back.
         
-        3 + 3 + 12 + 12 + 12 + 2 = 44(num_observation)
+        3 + 3 + 12 + 12 + 12 + 2 +2 = 46(num_observation)
         '''
-        num_privileged_obs = 162 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        num_privileged_obs = 164 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
         '''
         self.obs_buf: torch.Size([4096, 44])
         self.base_lin_vel: torch.Size([4096, 3])
@@ -59,7 +60,7 @@ class TocabiCfg( LeggedRobotCfg ):
         self.dof_props['damping']: torch.Size([4096, 12])
         self.measured_heights: torch.Size([4096, 81])
         
-        44 + 3 + 3 + 3 + 3 + 1 + 12 + 12 + 81 = 162
+        46 + 3 + 3 + 3 + 3 + 1 + 12 + 12 + 81 = 162
         '''
         num_actions = 12 # robot actuation
         env_spacing = 3.  # not used with heightfields/trimeshes 
@@ -135,7 +136,7 @@ class TocabiCfg( LeggedRobotCfg ):
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 100.0 # 0.5 in pos control
         # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 2 # 100Hz
+        decimation = 10 # 100Hz
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/tocabi/urdf/tocabi.urdf'
@@ -198,8 +199,8 @@ class TocabiCfg( LeggedRobotCfg ):
         class scales( LeggedRobotCfg.rewards.scales ):
             termination = -200.
             # traking
-            tracking_lin_vel = 10.
-            soft_tracking_lin_vel = 0.
+            tracking_lin_vel = .1
+            sinusoid_tracking_lin_vel = 10.
             tracking_ang_vel = 10.
 
             # regulation in task space
@@ -238,8 +239,8 @@ class TocabiCfg( LeggedRobotCfg ):
 
             stand_still_pb = 5.0
             no_fly_pb = 6.0
-            feet_air_time_pb = 2. # 2.
-            double_support_time_pb = 6.
+            # feet_air_time_pb = 2. # 2.
+            # double_support_time_pb = 6.
 
     class normalization:
         class obs_scales:
@@ -277,7 +278,7 @@ class TocabiCfg( LeggedRobotCfg ):
         # lookat = [-10., 0, 0.]  # [m]
 
     class sim:
-        dt =  0.005
+        dt =  0.001
         substeps = 1
         gravity = [0., 0. ,-9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
@@ -340,7 +341,7 @@ class TocabiCfgPPO( LeggedRobotCfgPPO ):
         # The following list indicate the ranges in the observation vector indices, for which switching places is necessary
         switch_mirror = [(42, 44)]
         # The following list indicate the ranges in the observation vector indices, for which no mirroring is necessary.
-        no_mirror = []
+        no_mirror = [(44, 46)]
         
     class runner( LeggedRobotCfgPPO.runner ):
         policy_class_name = 'ActorCritic'

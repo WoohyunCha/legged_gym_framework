@@ -94,16 +94,16 @@ class Bolt10Cfg( LeggedRobotCfg ):
 
     class commands( LeggedRobotCfg.commands):
         curriculum = True
-        max_curriculum = 1.
+        max_curriculum = 2.
         num_commands = 3 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
         
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-0.4, 0.4] # min max [m/s] seems like less than or equal to 0.2 it sends 0 command
-            lin_vel_y = [-0., 0.]   # min max [m/s]
-            ang_vel_yaw = [-0., 0.]    # min max [rad/s]
-            heading = [0, 0]
+            lin_vel_x = [-.8, .8] # min max [m/s] seems like less than or equal to 0.2 it sends 0 command
+            lin_vel_y = [-0.4, 0.4]   # min max [m/s]
+            ang_vel_yaw = [-0.4, 0.4]    # min max [rad/s]
+            heading = [-3.14, 3.14]
             
 
     class init_state( LeggedRobotCfg.init_state ):
@@ -186,18 +186,18 @@ class Bolt10Cfg( LeggedRobotCfg ):
         thickness = 0.01
 
     class domain_rand:
-        randomize_friction = True # Randomizes dof shape friction. Simulated ground friction is the mean of shape friction and terrain friction
+        randomize_friction = False # Randomizes dof shape friction. Simulated ground friction is the mean of shape friction and terrain friction
         friction_range = [0.5, 1.25]
-        randomize_base_mass = True
+        randomize_base_mass = False
         added_mass_range = [-.3, .3]
         push_robots = False
         push_interval_s = 3
-        max_push_vel_xy = .5
-        ext_force_robots = False
+        max_push_vel_xy = .5    
+        ext_force_robots = True
         ext_force_randomize_interval_s = 5
-        ext_force_vector_6d_range = [(-30,30), (-30,30), (-30, 30), (-3,3), (-3,3), (-3,3)]
-        ext_force_interval_s = 5
-        ext_force_duration_s = [0.1, 1.]
+        ext_force_vector_6d_range = [(-6,6), (-6,6), (-0, 0), (-0,0), (-0,0), (-0,0)]
+        ext_force_interval_s = 2
+        ext_force_duration_s = [0.3, 0.7]
         randomize_dof_friction = False
         dof_friction_interval_s = 5
         dof_friction = [0, 0.03] # https://forums.developer.nvidia.com/t/possible-bug-in-joint-friction-value-definition/208631
@@ -218,7 +218,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
         base_height_target = 0.5
         
         class scales( LeggedRobotCfg.rewards.scales ):
-            termination = -100.
+            termination = -200.
             # traking
             tracking_lin_vel = 10.
             tracking_ang_vel = 10.
@@ -239,7 +239,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
             feet_stumble = -0.0 
             stand_still = 0.0
             no_fly = 0.0
-            feet_contact_forces = -3.e-3
+            feet_contact_forces = -5.e-2
             
             # joint limits
             torque_limits = -0.01
@@ -259,7 +259,7 @@ class Bolt10Cfg( LeggedRobotCfg ):
 
             stand_still_pb = 1.0
             no_fly_pb = 4.0
-            feet_air_time_pb = 0. # 2.
+            feet_air_time_pb = 3. # 2.
 
     class normalization:
         class obs_scales:
@@ -366,10 +366,10 @@ class Bolt10CfgPPO( LeggedRobotCfgPPO ):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO_sym'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 1000 # number of policy updates
+        max_iterations = 2000 # number of policy updates
         
         # Optional. Choose the length of state history for the algorithm to use.
-        history_len = 1
+        history_len = 5
         critic_history_len = 1
 
         # logging
