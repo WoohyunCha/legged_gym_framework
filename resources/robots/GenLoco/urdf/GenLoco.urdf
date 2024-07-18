@@ -1,0 +1,232 @@
+<robot name="GenLoco">
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.183 0.519 0.65" />
+      </geometry>
+      <material name="grey">
+        <color rgba="0.9 0.9 0.9 1.0" />
+      </material>
+    </visual>
+    <inertial>
+      <mass value="56.59573332167306" />
+      <inertia ixx="0.4977996389314243" ixy="0.0005382354492767337" ixz="0.000673582600769409" iyy="0.14881034659565465" iyz="0.0019100593730420653" izz="0.12856316779023805" />
+      <origin xyz="-0.006106760782605322 0.018874467252944012 0.026487201706680757" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.183 0.519 0.65" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="L_HipYaw" type="revolute">
+    <parent link="base_link" />
+    <child link="L_HipYaw" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 0 1" />
+    <origin xyz="0 0.259652381902582 -0.32494575920804797" />
+  </joint>
+  <link name="L_HipYaw">
+    <inertial>
+      <mass value="1.e-4" />
+      <inertia ixx="1.e-7" ixy="0" ixz="0" iyy="1.e-7" iyz="0" izz="1.e-7" />
+    </inertial>
+  </link>
+  <joint name="L_HipRoll" type="revolute">
+    <parent link="L_HipYaw" />
+    <child link="L_HipRoll" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="1 0 0" />
+    <origin xyz="0 0 0" />
+  </joint>
+  <link name="L_HipRoll">
+    <inertial>
+      <mass value="1.e-4" />
+      <inertia ixx="1.e-7" ixy="0" ixz="0" iyy="1.e-7" iyz="0" izz="1.e-7" />
+    </inertial>
+  </link>
+  <joint name="L_HipPitch" type="revolute">
+    <parent link="L_HipRoll" />
+    <child link="L_HipPitch" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0 0 0" />
+  </joint>
+  <joint name="R_HipYaw" type="revolute">
+    <parent link="base_link" />
+    <child link="R_HipYaw" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 0 1" />
+    <origin xyz="0 -0.259652381902582 -0.32494575920804797" />
+  </joint>
+  <link name="R_HipYaw">
+    <inertial>
+      <mass value="1.e-4" />
+      <inertia ixx="1.e-7" ixy="0" ixz="0" iyy="1.e-7" iyz="0" izz="1.e-7" />
+    </inertial>
+  </link>
+  <joint name="R_HipRoll" type="revolute">
+    <parent link="R_HipYaw" />
+    <child link="R_HipRoll" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="1 0 0" />
+    <origin xyz="0 0 0" />
+  </joint>
+  <link name="R_HipRoll">
+    <inertial>
+      <mass value="1.e-4" />
+      <inertia ixx="1.e-7" ixy="0" ixz="0" iyy="1.e-7" iyz="0" izz="1.e-7" />
+    </inertial>
+  </link>
+  <joint name="R_HipPitch" type="revolute">
+    <parent link="R_HipRoll" />
+    <child link="R_HipPitch" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0 0 0" />
+  </joint>
+  <link name="L_HipPitch">
+    <visual>
+      <origin xyz="0 0 -0.19048465387010505" rpy="0 0 0" />
+      <geometry>
+        <box size="0.07388134244020884 0.07388134244020884 0.3161884880312981" />
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="9.831603188847755" />
+      <inertia ixx="0.01244099115835184" ixy="5.366534156893565e-06" ixz="2.296704776865309e-05" iyy="0.013238319085262157" iyz="2.296704776865309e-05" izz="0.0010670262476666962" />
+      <origin xyz="0 0 -0.19048465387010505" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.19048465387010505" rpy="0 0 0" />
+      <geometry>
+        <box size="0.07388134244020884 0.07388134244020884 0.3161884880312981" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="L_KneePitch" type="revolute">
+    <parent link="L_HipPitch" />
+    <child link="L_KneePitch" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0 0 -0.3161884880312981" />
+  </joint>
+  <link name="R_HipPitch">
+    <visual>
+      <origin xyz="0 0 -0.19048465387010505" rpy="0 0 0" />
+      <geometry>
+        <box size="0.07388134244020884 0.07388134244020884 0.3161884880312981" />
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="9.831603188847755" />
+      <inertia ixx="0.01244099115835184" ixy="5.366534156893565e-06" ixz="2.296704776865309e-05" iyy="0.013238319085262157" iyz="2.296704776865309e-05" izz="0.0010670262476666962" />
+      <origin xyz="0 0 -0.19048465387010505" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.19048465387010505" rpy="0 0 0" />
+      <geometry>
+        <box size="0.07388134244020884 0.07388134244020884 0.3161884880312981" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="R_KneePitch" type="revolute">
+    <parent link="R_HipPitch" />
+    <child link="R_KneePitch" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0 0 -0.3161884880312981" />
+  </joint>
+  <link name="L_KneePitch">
+    <visual>
+      <origin xyz="0 0 -0.15121586624907316" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3416983400180711 0.3416983400180711 0.3024317324981463" />
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="6.702655188489463" />
+      <inertia ixx="0.020347449878897084" ixy="7.825869761750536e-05" ixz="6.926552087510579e-05" iyy="0.017634925687362406" iyz="6.926552087510579e-05" izz="0.01077094456665836" />
+      <origin xyz="0 0 -0.15121586624907316" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.15121586624907316" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3416983400180711 0.3416983400180711 0.3024317324981463" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="L_AnklePitch" type="revolute">
+    <parent link="L_KneePitch" />
+    <child link="L_Foot" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0 0 -0.3024317324981463" />
+  </joint>
+  <link name="R_KneePitch">
+    <visual>
+      <origin xyz="0 0 -0.15121586624907316" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3416983400180711 0.3416983400180711 0.3024317324981463" />
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="6.702655188489463" />
+      <inertia ixx="0.020347449878897084" ixy="7.825869761750536e-05" ixz="6.926552087510579e-05" iyy="0.017634925687362406" iyz="6.926552087510579e-05" izz="0.01077094456665836" />
+      <origin xyz="0 0 -0.15121586624907316" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.15121586624907316" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3416983400180711 0.3416983400180711 0.3024317324981463" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="R_AnklePitch" type="revolute">
+    <parent link="R_KneePitch" />
+    <child link="R_Foot" />
+    <limit effort="200" velocity="1.0" lower="-3.14" upper="3.14" />
+    <axis xyz="0 1 0" />
+    <origin xyz="0 0 -0.3024317324981463" />
+  </joint>
+  <link name="L_Foot">
+    <visual>
+      <origin xyz="0 0 -0.045020947273649956" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3453026304282217 0.14709933511586715 0.09004189454729991" />
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="2.318618637506371" />
+      <inertia ixx="0.0007549231323891357" ixy="1.1777142201866895e-05" ixz="7.208980213090498e-06" iyy="0.0031517709843164976" iyz="3.0710342255255084e-06" izz="0.003892238284113959" />
+      <origin xyz="0 0 -0.045020947273649956" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.045020947273649956" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3453026304282217 0.14709933511586715 0.09004189454729991" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="R_Foot">
+    <visual>
+      <origin xyz="0 0 -0.045020947273649956" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3453026304282217 0.14709933511586715 0.09004189454729991" />
+      </geometry>
+    </visual>
+    <inertial>
+      <mass value="2.318618637506371" />
+      <inertia ixx="0.0007549231323891357" ixy="1.1777142201866895e-05" ixz="7.208980213090498e-06" iyy="0.0031517709843164976" iyz="3.0710342255255084e-06" izz="0.003892238284113959" />
+      <origin xyz="0 0 -0.045020947273649956" rpy="0 0 0" />
+    </inertial>
+    <collision>
+      <origin xyz="0 0 -0.045020947273649956" rpy="0 0 0" />
+      <geometry>
+        <box size="0.3453026304282217 0.14709933511586715 0.09004189454729991" />
+      </geometry>
+    </collision>
+  </link>
+</robot>

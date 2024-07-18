@@ -504,6 +504,9 @@ class Bolt6(LeggedRobot):
         #         print("shape ", i, " filter : ", self.gym.get_actor_rigid_shape_properties(self.envs[0], 0)[i].filter)
         #         print("shape ", i, " contact offset : ", self.gym.get_actor_rigid_shape_properties(self.envs[0], 0)[i].contact_offset)
                 # I guess the best I can try is set the shin's bitmasks as 0           
+            
+        # Set passive joint
+
 
 
     def _custom_parse_cfg(self, cfg):

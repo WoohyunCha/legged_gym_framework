@@ -47,7 +47,8 @@ from .bolt10.bolt10 import Bolt10
 from .bolt10.bolt10_config import Bolt10Cfg, Bolt10CfgPPO
 from .tocabi.tocabi import Tocabi
 from .tocabi.tocabi_config import TocabiCfg, TocabiCfgPPO
-
+from .g1.g1 import g1
+from .g1.g1_config import g1Cfg, g1CfgPPO
 
 
 
@@ -60,7 +61,6 @@ task_registry.register( "anymal_c_rough", Anymal, AnymalCRoughCfg(), AnymalCRoug
 task_registry.register( "anymal_c_flat", Anymal, AnymalCFlatCfg(), AnymalCFlatCfgPPO() ) # Anymal is a VecEnv object (env)
 task_registry.register( "anymal_b", Anymal, AnymalBRoughCfg(), AnymalBRoughCfgPPO() )
 task_registry.register( "a1", LeggedRobot, A1RoughCfg(), A1RoughCfgPPO() )
-task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
 
 task_registry.register("jet_rough", Jet, JetRoughCfg(), JetRoughCfgPPO())
 task_registry.register("jet_flat", Jet, JetFlatCfg(), JetFlatCfgPPO())
@@ -69,3 +69,5 @@ custom_task_registry.register("bolt10", Bolt10, Bolt10Cfg(), Bolt10CfgPPO())
 custom_task_registry.register("bolt6", Bolt6, Bolt6Cfg(), Bolt6CfgPPO())
 
 custom_task_registry.register("tocabi", Tocabi, TocabiCfg(), TocabiCfgPPO())
+custom_task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
+custom_task_registry.register("g1", g1, g1Cfg(), g1CfgPPO())

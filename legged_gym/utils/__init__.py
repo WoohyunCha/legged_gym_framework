@@ -28,10 +28,12 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
-from .helpers import class_to_dict, get_load_path, get_args, export_policy_as_jit, set_seed, update_class_from_dict
+from .helpers import class_to_dict, get_load_path, get_args, export_policy_as_jit, set_seed, update_class_from_dict, txt_to_numpy
 from .task_registry import task_registry
 from .custom_task_registry import custom_task_registry
 from .logger import Logger
 from .math import *
 from .terrain import Terrain
 from .custom_terrain import custom_Terrain
+from .reference_mapper import reference_mapper
+from .torch_jit_utils import cubic

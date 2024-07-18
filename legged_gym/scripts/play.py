@@ -129,8 +129,8 @@ def custom_play(args):
     logger = Logger(env.dt)
     robot_index = 0 # which robot is used for logging
     joint_index = 1 # which joint is used for logging
-    start_state_log = np.ceil(4. / env.dt) 
-    stop_state_log = np.ceil(6. / env.dt) # number of steps before plotting states
+    start_state_log = np.ceil(2. / env.dt) 
+    stop_state_log = np.ceil(4. / env.dt) # number of steps before plotting states
     stop_rew_log = env.max_episode_length + 1 # number of steps before print average episode rewards
     # camera_position = np.array(env_cfg.viewer.pos, dtype=np.float64)
     # camera_vel = np.array([1., 1., 0.])
@@ -190,6 +190,8 @@ def custom_play(args):
                     'base_vel_z': env.base_lin_vel[robot_index, 2].item(),
                     'base_vel_yaw': env.base_ang_vel[robot_index, 2].item(),
                     'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy(),
+                    'phase modulation action': actions[robot_index, -1].item(),
+                    'energy': torch.sum(env.dof_vel[robot_index, :] * env.torques[robot_index, :], dim=-1).item()
                 }
             )
             if hasattr(env, 'commands_sinusoid'):
@@ -297,7 +299,7 @@ def custom_play(args):
 if __name__ == '__main__':
     EXPORT_POLICY = True
     RECORD_FRAMES = False
-    MOVE_CAMERA = True
+    MOVE_CAMERA = False
     args = get_args()
     # play(args)
     custom_play(args)

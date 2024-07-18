@@ -33,7 +33,7 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 class TocabiCfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_envs = 4096 # robot count 4096
-        num_observations = 46
+        num_observations = 44
         '''
         self.projected_gravity:  torch.Size([4096, 3])
         self.commands[:, :3]:  torch.Size([4096, 3])
@@ -41,14 +41,13 @@ class TocabiCfg( LeggedRobotCfg ):
         self.dof_vel:  torch.Size([4096, 12])
         self.actions:  torch.Size([4096, 12])
         self.contacts:   torch.Size([4096, 2])
-        phase: torch.Size([4096, 2])
 
         Observations should be stacked so that cartesian space vectors are in front, followed by joint space vectors.
         Values that do not need any mirroring (ex. terrain parameters) should be stacked in the back.
         
-        3 + 3 + 12 + 12 + 12 + 2 +2 = 46(num_observation)
+        3 + 3 + 12 + 12 + 12 + 2 = 44(num_observation)
         '''
-        num_privileged_obs = 164 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        num_privileged_obs = 162 # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
         '''
         self.obs_buf: torch.Size([4096, 44])
         self.base_lin_vel: torch.Size([4096, 3])
@@ -60,9 +59,10 @@ class TocabiCfg( LeggedRobotCfg ):
         self.dof_props['damping']: torch.Size([4096, 12])
         self.measured_heights: torch.Size([4096, 81])
         
-        46 + 3 + 3 + 3 + 3 + 1 + 12 + 12 + 81 = 162
+        44 + 3 + 3 + 3 + 3 + 1 + 12 + 12 + 81 = 162
         '''
-        num_actions = 12 # robot actuation
+        num_actuations = 12
+        num_actions = 13 # robot actuation + phase modulation
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
         episode_length_s = 15 # episode length in seconds
@@ -102,7 +102,7 @@ class TocabiCfg( LeggedRobotCfg ):
         
         class ranges( LeggedRobotCfg.commands.ranges ):
             lin_vel_x = [-1., 1.] # min max [m/s] seems like less than or equal to 0.2 it sends 0 command
-            lin_vel_y = [-0.5, 0.5]   # min max [m/s]
+            lin_vel_y = [-0.0, 0.0]   # min max [m/s]
             ang_vel_yaw = [-1., 1.]    # min max [rad/s]
             heading = [-3.14, 3.14]
             
@@ -136,7 +136,7 @@ class TocabiCfg( LeggedRobotCfg ):
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 100.0 # 0.5 in pos control
         # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 10 # 100Hz
+        decimation = 2 # 100Hz
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/tocabi/urdf/tocabi.urdf'
@@ -145,7 +145,7 @@ class TocabiCfg( LeggedRobotCfg ):
         penalize_contacts_on = []
         # penalize_contacts_on = ['bolt_lower_leg_right_side', 'bolt_body', 'bolt_hip_fe_left_side', 'bolt_hip_fe_right_side', ' bolt_lower_leg_left_side', 'bolt_shoulder_fe_left_side', 'bolt_shoulder_fe_right_side', 'bolt_trunk', 'bolt_upper_leg_left_side', 'bolt_upper_leg_right_side']
         terminate_after_contacts_on = ['base', 'Knee', 'Thigh']
-        
+        termination_height = (0,6, 1.0)
         
         disable_gravity = False
         collapse_fixed_joints = True # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
@@ -164,6 +164,10 @@ class TocabiCfg( LeggedRobotCfg ):
         armature = 0.
         thickness = 0.01
 
+        # Referemce motion. If no reference, leave it as None
+        reference_data = "{LEGGED_GYM_ROOT_DIR}/resources/reference_motions/processed_data_tocabi_walk.txt"
+        # reference_data = None
+
     class domain_rand:
         randomize_friction = True # Randomizes dof shape friction. Simulated ground friction is the mean of shape friction and terrain friction
         friction_range = [0.5, 1.25]
@@ -174,10 +178,9 @@ class TocabiCfg( LeggedRobotCfg ):
         max_push_vel_xy = .5
         ext_force_robots = False
         ext_force_randomize_interval_s = 5
-        ext_force_direction_range = (0, 2*3.141592)
-        ext_force_scale_range = (-6, 6)
-        ext_force_interval_s = 2
-        ext_force_duration_s = [0.3, 0.7]
+        ext_force_vector_6d_range = [(-30,30), (-30,30), (-30, 30), (-3,3), (-3,3), (-3,3)]
+        ext_force_interval_s = 5
+        ext_force_duration_s = [0.1, 1.]
         randomize_dof_friction = False
         dof_friction_interval_s = 5
         dof_friction = [0, 0.03] # https://forums.developer.nvidia.com/t/possible-bug-in-joint-friction-value-definition/208631
@@ -198,56 +201,33 @@ class TocabiCfg( LeggedRobotCfg ):
         base_height_target = 0.5
         
         class scales( LeggedRobotCfg.rewards.scales ):
-            termination = -200.
-            # traking
-            tracking_lin_vel = .1
-            sinusoid_tracking_lin_vel = 10.
-            tracking_ang_vel = 10.
+            # tracking_lin_vel = 1e-5
+            # termination = 0. #-200.
+            # mimic_body_orientation = 0.3
+            # qpos_regulation = 0.35
+            # qvel_regulation = 0.05
+            # contact_force_penalty = 1.
+            # torque_regulation = .05
+            # torque_diff_regulation = .6
+            # qacc_regulation = .05
+            # body_vel = .3
+            # foot_contact = 1.
+            # contact_force_diff = .2
+            # force_thres_penalty = 1.
+            # force_diff_thres_penalty = 1.
+            # force_ref = .1
 
-            # regulation in task space
-            lin_vel_z = -0.
-            ang_vel_xy = -0.0
-            
-            # regulation in joint space
-            torques = -1.e-6 # -5.e-7
-            dof_vel = -0.01
-            dof_acc = -0.# -2.e-7
-            action_rate = -0.0001 # -0.000001
-
-            # walking specific rewards
-            feet_air_time = 0.
-            collision = -0.
-            feet_stumble = -0.0 
-            stand_still = 0.0
-            no_fly = 0.0
-            feet_contact_forces = -1.e-2 #-3.e-3
-            
-            # joint limits
-            torque_limits = -0.01
-            dof_vel_limits = -0.
-            dof_pos_limits = -10.
-            
-            # DRS
-            orientation = 0.0 # Rui
-            base_height = 0.0
-            joint_regularization = 0.0
-
-            # PBRS rewards
-            ori_pb = 5.0
-            baseHeight_pb = 2.0
-            jointReg_pb = 3.0
-            action_rate_pb = 0.0
-
-            stand_still_pb = 5.0
-            no_fly_pb = 6.0
-            # feet_air_time_pb = 2. # 2.
-            # double_support_time_pb = 6.
+            # termination = -100
+            tracking_lin_vel = 1.
+            tracking_ang_vel = .5
+            energy_minimization = 2e-4
+            qpos_regulation = 8
 
     class normalization:
         class obs_scales:
             lin_vel = 1.0 # Rui
             ang_vel = 0.25
-            dof_pos = 1.0
+            dof_pos = 0.5 # 1.0
             dof_vel = 0.05
             height_measurements = 5.0
             
@@ -257,7 +237,9 @@ class TocabiCfg( LeggedRobotCfg ):
             dof_friction = 10.
             dof_damping = 10.
         clip_observations = 100 #TODO
-        clip_actions = 5. #TODO
+        clip_actions = 10. #TODO
+        class action_scales:
+            phase = 0.1
 
     class noise:
         add_noise = True
@@ -279,7 +261,7 @@ class TocabiCfg( LeggedRobotCfg ):
         # lookat = [-10., 0, 0.]  # [m]
 
     class sim:
-        dt =  0.001
+        dt =  0.002
         substeps = 1
         gravity = [0., 0. ,-9.81]  # [m/s^2]
         up_axis = 1  # 0 is y, 1 is z
@@ -327,12 +309,13 @@ class TocabiCfgPPO( LeggedRobotCfgPPO ):
         
         
         # Symmetric loss
+        num_actuation = 12
         mirror = {'HipPitch': (2,8), 
                         'KneePitch': (3,9), 
                         'AnklePitch': (4,10),
                         } # Joint pairs that need to be mirrored
         mirror_neg = {'HipYaw': (0,6), 'HipRoll': (1,7), 'AnkleRoll': (5,11) } # Joint pairs that need to be mirrored and signs must be changed
-        mirror_weight = 4
+        mirror_weight = 0
         # The following lists indicate the ranges in the observation vector indices, for which specific mirroring method should applied
         # For example, cartesian_angular_mirror = [(0,3), (6,12)] indicate that the cartesian angular mirror operation should be applied
         # to the 0th~2nd, and the 6th~8th, 9th~11th elements of the observation vector.
@@ -340,9 +323,10 @@ class TocabiCfgPPO( LeggedRobotCfgPPO ):
         cartesian_linear_mirror = [(0,3)]
         cartesian_command_mirror = [(3,6)]
         # The following list indicate the ranges in the observation vector indices, for which switching places is necessary
-        switch_mirror = [(42, 44)]
+        switch_mirror = []
         # The following list indicate the ranges in the observation vector indices, for which no mirroring is necessary.
-        no_mirror = [(44, 46)]
+        phase_mirror = [(42, 44)]
+        no_mirror = []
         
     class runner( LeggedRobotCfgPPO.runner ):
         policy_class_name = 'ActorCritic'
@@ -351,11 +335,11 @@ class TocabiCfgPPO( LeggedRobotCfgPPO ):
         max_iterations = 1000 # number of policy updates
         
         # Optional. Choose the length of state history for the algorithm to use.
-        history_len = 15
+        history_len = 10
         critic_history_len = 1
 
         # logging
-        save_interval = 1000 # check for potential saves every this many iterations
+        save_interval = 200 # check for potential saves every this many iterations
         experiment_name = 'tocabi'
         run_name = 'tocabi'
         # load and resume

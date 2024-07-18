@@ -59,7 +59,7 @@ class Logger:
         self.rew_log.clear()
 
     def plot_states_mainthread(self, save_fig = False, save_dir = None):
-        nb_rows = 3 # 3
+        nb_rows = 4 # 3
         nb_cols = 3 # 3
         fig, axs = plt.subplots(nb_rows, nb_cols)
         for key, value in self.state_log.items():
@@ -122,6 +122,14 @@ class Logger:
         if log["knee_pitch_torque"]!=[]: a.plot(time, log["knee_pitch_torque"], label='measured')
         a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Knee Pitch Torque')
         a.legend()        
+        a = axs[3, 0]
+        if log["phase modulation action"]!=[]: a.plot(time, log["phase modulation action"])
+        a.set(xlabel='time [s]', ylabel='Phase action [0 1]', title='Phse modulation')
+        a.legend()    
+        a = axs[3, 1]
+        if log["energy"]!=[]: a.plot(time, log["energy"])
+        a.set(xlabel='time [s]', ylabel='energy [J]', title='energy')
+        a.legend()             
         
         plt.show
         if save_fig:

@@ -69,14 +69,14 @@ class LeggedRobot(BaseTask):
         self.init_done = False
         self._parse_cfg(self.cfg) # reward scale comes from cfg file.
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
-
+        if hasattr(self, "_custom_init"):
+            self._custom_init(cfg)
         if not self.headless:
             self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
         self._init_buffers()
         self._prepare_reward_function()
         self.init_done = True
-        if hasattr(self, "_custom_init"):
-            self._custom_init(cfg)
+
     def step(self, actions):
         """ Apply actions, simulate, call self.post_physics_step()
 
@@ -372,7 +372,7 @@ class LeggedRobot(BaseTask):
             [torch.Tensor]: Torques sent to the simulation
         """
         #pd controller
-        actions_scaled = actions * self.cfg.control.action_scale 
+        actions_scaled = actions * self.cfg.control.action_scale
         control_type = self.cfg.control.control_type
         if control_type=="P":
             torques = self.p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos) - self.d_gains*self.dof_vel

@@ -193,6 +193,15 @@ def export_policy_as_jit(actor_critic, path):
         traced_script_module = torch.jit.script(model)
         traced_script_module.save(path)
 
+def txt_to_numpy(filepath):
+    try:
+        # Load data from a text file
+        data = np.loadtxt(filepath)
+        print("Data loaded successfully.")
+        return data
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 
 class PolicyExporterLSTM(torch.nn.Module):
     def __init__(self, actor_critic):
