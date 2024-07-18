@@ -317,28 +317,28 @@
     <axis xyz="1 0 0"/>
     <parent link="left_pelvis_abduction"/>
     <child link="left_pelvis_rotation"/>
-    <limit effort="112" lower="-0.2618" upper="0.3927" velocity="20.1475"/>
+    <limit effort="112" lower="-0.2618" upper="0.3927" velocity="5"/>
   </joint>
   <joint name="hip_rotation_left" type="revolute">
     <origin rpy="0 1.57079632679 -1.57079632679" xyz="0 0 -0.09"/>
     <axis xyz="-1 0 0"/>
     <parent link="left_pelvis_rotation"/>
     <child link="left_hip"/>
-    <limit effort="112" lower="-0.3927" upper="0.3927" velocity="20.1475"/>
+    <limit effort="112" lower="-0.3927" upper="0.3927" velocity="5"/>
   </joint>
   <joint name="hip_flexion_left" type="revolute">
     <origin rpy="0 0 0" xyz="0 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="left_hip"/>
     <child link="left_thigh"/>
-    <limit effort="195" lower="-0.8727" upper="1.3963" velocity="20.5085"/>
+    <limit effort="195" lower="-0.8727" upper="1.3963" velocity="5"/>
   </joint>
   <joint name="thigh_joint_left" type="revolute">
     <origin rpy="0 0 0" xyz="0.12 0 0.0045"/>
     <axis xyz="0 0 1"/>
     <parent link="left_thigh"/>
     <child link="left_shin"/>
-    <limit effort="195" lower="-2.8623" upper="-0.6458" velocity="20.5085"/>
+    <limit effort="195" lower="-2.8623" upper="-0.6458" velocity="5"/>
   </joint>
   <!-- <joint name="knee_to_shin_left" type="revolute">
     <origin rpy="0 0 0" xyz="0.0607 0.0474 0"/>
@@ -352,14 +352,14 @@
     <axis xyz="0 0 1"/>
     <parent link="left_shin"/>
     <child link="left_tarsus"/>
-    <limit effort="195" lower="0.6458" upper="2.8623" velocity="20.5085"/>
+    <limit effort="195" lower="0.6458" upper="2.8623" velocity="5"/>
   </joint>
   <joint name="toe_joint_left" type="revolute">
     <origin rpy="0 0 0" xyz="0.408 -0.04 0"/>
     <axis xyz="0 0 1"/>
     <parent link="left_tarsus"/>
     <child link="left_toe"/>
-    <limit effort="45" lower="-2.4435" upper="-0.5236" velocity="20.5192"/>
+    <limit effort="45" lower="-2.4435" upper="-0.5236" velocity="5"/>
   </joint>
   <joint name="fixed_right" type="fixed">
     <origin rpy="0 1.57079632679 0" xyz="0.021 -0.135 0"/>
@@ -371,28 +371,28 @@
     <axis xyz="1 0 0"/>
     <parent link="right_pelvis_abduction"/>
     <child link="right_pelvis_rotation"/>
-    <limit effort="112" lower="-0.3927" upper="0.2618" velocity="20.1475"/>
+    <limit effort="112" lower="-0.3927" upper="0.2618" velocity="5"/>
   </joint>
   <joint name="hip_rotation_right" type="revolute">
     <origin rpy="0 1.57079632679 -1.57079632679" xyz="0 0 -0.09"/>
     <axis xyz="-1 0 0"/>
     <parent link="right_pelvis_rotation"/>
     <child link="right_hip"/>
-    <limit effort="112" lower="-0.3927" upper="0.3927" velocity="20.1475"/>
+    <limit effort="112" lower="-0.3927" upper="0.3927" velocity="5"/>
   </joint>
   <joint name="hip_flexion_right" type="revolute">
     <origin rpy="0 0 0" xyz="0 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="right_hip"/>
     <child link="right_thigh"/>
-    <limit effort="195" lower="-0.8727" upper="1.3963" velocity="20.5085"/>
+    <limit effort="195" lower="-0.8727" upper="1.3963" velocity="5"/>
   </joint>
   <joint name="thigh_joint_right" type="revolute">
     <origin rpy="0 0 0" xyz="0.12 0 -0.0045"/>
     <axis xyz="0 0 1"/>
     <parent link="right_thigh"/>
     <child link="right_shin"/>
-    <limit effort="195" lower="-2.8623" upper="-0.6458" velocity="20.5085"/>
+    <limit effort="195" lower="-2.8623" upper="-0.6458" velocity="5"/>
   </joint>
   <!-- <joint name="knee_to_shin_right" type="revolute">
     <origin rpy="0 0 0" xyz="0.0607 0.0474 0"/>
@@ -406,14 +406,14 @@
     <axis xyz="0 0 1"/>
     <parent link="right_shin"/>
     <child link="right_tarsus"/>
-    <limit effort="195" lower="0.6458" upper="2.8623" velocity="20.5085"/>
+    <limit effort="195" lower="0.6458" upper="2.8623" velocity="5"/>
   </joint>
   <joint name="toe_joint_right" type="revolute">
     <origin rpy="0 0 0" xyz="0.408 -0.04 0"/>
     <axis xyz="0 0 1"/>
     <parent link="right_tarsus"/>
     <child link="right_toe"/>
-    <limit effort="45" lower="-2.4435" upper="-0.5236" velocity="20.5192"/>
+    <limit effort="45" lower="-2.4435" upper="-0.5236" velocity="5"/>
   </joint>
   <!-- <transmission name="hip_abduction_trans_left" type="transmission_interface/SimpleTransmission">
     <joint name="hip_abduction_left"/>
